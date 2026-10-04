@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import type { GoalSummary, LatentRewardStructure } from "../core/types/contracts.js";
 import type { LatentRewardReplayReport } from "../forensics/replay/contracts.js";
 
 interface Claim {
@@ -47,12 +48,14 @@ interface Simulation {
 }
 interface Report {
   episodeId: string;
+  goalSummary?: GoalSummary;
   claims: Claim[];
   traces: Trace[];
   hypothesisSet: { hypotheses: Hypothesis[]; epistemicDisclaimer: string; discriminatingTests: Test[] };
   simulation: Simulation[];
   model: string;
   latentRewardReplay?: LatentRewardReplayReport;
+  latentRewardStructure?: LatentRewardStructure;
 }
 
 export function App() {
@@ -207,6 +210,29 @@ export function App() {
           <p className="disclaimer">⚠️ {report.hypothesisSet.epistemicDisclaimer}</p>
           <p className="muted">Model backend: {report.model} · Episode: {report.episodeId}</p>
 
+          {report.goalSummary && (
+            <section className="panel" style={{ borderLeft: "4px solid #4f7cff" }}>
+              <h2>1. Episode & Agent Goal Summarization</h2>
+              <div className="row" style={{ gap: 20 }}>
+                <div style={{ flex: 1 }}>
+                  <strong>Nominal Assigned Goal (G_nominal):</strong>
+                  <p style={{ margin: "6px 0 10px 0" }}>{report.goalSummary.nominalGoal}</p>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <strong>Inferred Operative Goal (G_operative):</strong>
+                  <p style={{ margin: "6px 0 10px 0" }}>{report.goalSummary.operativeGoal}</p>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+                <span>Alignment Verdict:</span>
+                <span className={`badge ${report.goalSummary.alignmentVerdict === "ALIGNED" ? "benign" : "deceptive"}`}>
+                  {report.goalSummary.alignmentVerdict}
+                </span>
+                <span className="muted" style={{ marginLeft: 8 }}>{report.goalSummary.evidenceNotes}</span>
+              </div>
+            </section>
+          )}
+
           <section className="panel">
             <h2>2. Atomic claims</h2>
             <table>
@@ -268,18 +294,97 @@ export function App() {
           </section>
 
           <section className="panel">
-            <h2>6. Counterfactual simulation</h2>
-            {report.simulation.map((s) => (
-              <div key={s.agentPolicy} className="trace">
-                <div><strong>Policy: {s.agentPolicy}</strong> → signal: <code>{s.signal}</code> (supports {s.supportsHypothesisCategory})</div>
-                <div className="muted">Emitted claims: {s.emittedClaims.join(" | ")} · observed count: {s.observedCount ?? "—"}</div>
-              </div>
-            ))}
+            <h2>6. Counterfactual simulation (do(X = x&apos;))</h2>
+            <div className="cards">
+              {report.simulation.map((s, idx) => (
+                <div key={idx} className={`card ${s.signal === "REAL_COUNT_OBSERVED" || s.signal === "HONEST_ADOPTION" ? "benign" : "deceptive"}`}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <strong>Policy: {s.agentPolicy}</strong>
+                    <span className="badge">{s.supportsHypothesisCategory}</span>
+                  </div>
+                  <p><strong>Intervention:</strong> {s.appliedIntervention}</p>
+                  <p>
+                    <strong>Emitted claims:</strong> <em>{s.emittedClaims.join(" | ") || "None"}</em>
+                    {s.observedCount !== undefined && <span> (Count: {s.observedCount})</span>}
+                  </p>
+                  <div>
+                    <strong>Forensic Signal:</strong>{" "}
+                    <code className={`badge ${s.signal === "REAL_COUNT_OBSERVED" || s.signal === "HONEST_ADOPTION" ? "benign" : "deceptive"}`}>
+                      {s.signal}
+                    </code>
+                  </div>
+                  {s.environmentDivergenceNotice && s.environmentDivergenceNotice.length > 0 && (
+                    <div className="muted" style={{ marginTop: 8 }}>
+                      Isolation Delta: {s.environmentDivergenceNotice.join(" · ")}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </section>
+
+          {report.latentRewardStructure && (
+            <section className="panel" style={{ borderLeft: "4px solid #f0b429" }}>
+              <h2>7. Latent Reward Function Structure & Payoff Matrix</h2>
+              <div className="delta" style={{ fontSize: "1.05rem", padding: "10px 14px", background: "#1c2230", borderRadius: 6, marginBottom: 16 }}>
+                <code>{report.latentRewardStructure.formulation}</code>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ margin: "0 0 10px 0" }}>Evaluated Reward Parameters</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+                  {Object.entries(report.latentRewardStructure.parameters).map(([key, p]) => (
+                    <div key={key} className="card" style={{ borderColor: p.active ? "#f0b429" : "#2a3040" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <strong>{p.label}</strong>
+                        <span className={`badge ${p.active ? "deceptive" : "benign"}`}>
+                          {p.active ? "ACTIVE" : "INACTIVE"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "1.4rem", fontWeight: "bold", margin: "4px 0" }}>
+                        {p.value.toFixed(2)}
+                      </div>
+                      <div className="muted">{p.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ margin: "0 0 10px 0" }}>Payoff Comparison Matrix</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Candidate Action</th>
+                      <th>Action Description</th>
+                      <th>Net Payoff Score</th>
+                      <th>Agent Decision</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.latentRewardStructure.payoffComparison.map((p, idx) => (
+                      <tr key={idx} style={{ background: p.preferredByAgent ? "#1a243b" : "transparent" }}>
+                        <td><strong>{p.action}</strong></td>
+                        <td>{p.description}</td>
+                        <td><code>{p.netPayoffScore > 0 ? `+${p.netPayoffScore}` : p.netPayoffScore}</code></td>
+                        <td>
+                          {p.preferredByAgent ? (
+                            <span className="badge deceptive">★ Selected Action</span>
+                          ) : (
+                            <span className="badge benign">Sub-optimal</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           {report.latentRewardReplay && (
             <section className="panel">
-              <h2>7. Latent Reward Reconstruction & Replay Rollouts</h2>
+              <h2>8. Isolated Replay Rollouts & Causal Confirmation</h2>
               {report.latentRewardReplay.inferredOperativeReward && (
                 <div className="delta" style={{ marginBottom: 12 }}>
                   <strong>Inferred Operative Reward:</strong> <code>{report.latentRewardReplay.inferredOperativeReward}</code>

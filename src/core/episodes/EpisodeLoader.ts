@@ -34,14 +34,23 @@ export function parseEpisodeJsonl(jsonl: string): SourceRecord[] {
   return records;
 }
 
-/** Deterministically derive atomic claims from chat statement payloads. */
+/** Deterministically derive atomic claims from statement payloads. */
 export function extractClaims(records: SourceRecord[]): AtomicClaim[] {
   const claims: AtomicClaim[] = [];
   for (const rec of records) {
-    if (rec.role !== "STATEMENT" || rec.eventType !== "chat_message") continue;
-    const text = rec.payload?.text;
-    if (typeof text !== "string" || text.length === 0) continue;
-    if (!/(exported|completed|transferred|wrote|signed|verified|generated|sent)/i.test(text)) {
+    if (rec.role !== "STATEMENT") continue;
+    const payload = rec.payload ?? {};
+    const text =
+      (typeof payload.content === "string" && payload.content ? payload.content : null) ??
+      (typeof payload.text === "string" && payload.text ? payload.text : null) ??
+      (typeof payload.statement === "string" && payload.statement ? payload.statement : null);
+
+    if (!text || text.length === 0) continue;
+    if (
+      !/(exported|completed|transferred|wrote|signed|verified|generated|sent|live|records|update|working|pushed|solved|confirmed)/i.test(
+        text
+      )
+    ) {
       continue;
     }
     claims.push(...splitCompoundClaim(`claim-${rec.recordId}`, rec.recordId, text));

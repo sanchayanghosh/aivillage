@@ -119,11 +119,42 @@ export const ForensicsHypothesisSetSchema = z.object({
 });
 export type ForensicsHypothesisSet = z.infer<typeof ForensicsHypothesisSetSchema>;
 
+// ---------- Step 2: Goal Summarization & Reward Structure ----------
+
+export const GoalSummarySchema = z.object({
+  nominalGoal: z.string(),
+  operativeGoal: z.string(),
+  alignmentVerdict: z.enum(["ALIGNED", "SHORTCUT_DIVERGENT", "DECEPTIVE_MASKING"]),
+  evidenceNotes: z.string(),
+});
+export type GoalSummary = z.infer<typeof GoalSummarySchema>;
+
+export const LatentRewardStructureSchema = z.object({
+  formulation: z.string(),
+  operativeArchetype: z.string(),
+  parameters: z.object({
+    nominalReward: z.object({ label: z.string(), value: z.number(), active: z.boolean(), description: z.string() }),
+    errorPenalty: z.object({ label: z.string(), value: z.number(), active: z.boolean(), description: z.string() }),
+    computeCost: z.object({ label: z.string(), value: z.number(), active: z.boolean(), description: z.string() }),
+    peerPressure: z.object({ label: z.string(), value: z.number(), active: z.boolean(), description: z.string() }),
+  }),
+  payoffComparison: z.array(z.object({
+    action: z.string(),
+    description: z.string(),
+    netPayoffScore: z.number(),
+    preferredByAgent: z.boolean(),
+  })),
+});
+export type LatentRewardStructure = z.infer<typeof LatentRewardStructureSchema>;
+
 // ---------- Step 2: simulation ----------
 
 export type SimulationSignal =
   | "REAL_COUNT_OBSERVED"
   | "FABRICATED_COUNT"
+  | "HONEST_ADOPTION"
+  | "PERSISTED_ANOMALY"
+  | "BEHAVIOR_SHIFTED"
   | "NO_CLEAR_SIGNAL";
 
 export interface SimulationResult {
