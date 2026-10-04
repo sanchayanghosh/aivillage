@@ -21,3 +21,125 @@ pre { white-space: pre-wrap; background: #0f1115; padding: 8px; border-radius: 4
 .muted { color: #8b93a7; font-size: 13px; }
 .disclaimer { background: #2a2410; border: 1px solid #f0b429; color: #f0d060; padding: 10px 14px; border-radius: 8px; }
 code { background: #0f1115; padding: 2px 6px; border-radius: 4px; }
+
+/* LLM Narrative & Group Explanations */
+.narrative-summary {
+  background: #182030;
+  border-left: 4px solid #4f7cff;
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.group-explanations {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.trace-card {
+  background: #141822;
+  border: 1px solid #2a3040;
+  border-radius: 8px;
+  padding: 16px;
+  transition: border-color 0.2s;
+}
+.trace-card.benign {
+  border-left: 4px solid #2fbf71;
+}
+.trace-card.suspicious {
+  border-left: 4px solid #f0b429;
+}
+.trace-card.deceptive {
+  border-left: 4px solid #e5484d;
+}
+.trace-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #232938;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+.trace-card-title {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: #f3f4f6;
+}
+.badge.agent-badge {
+  background: #253350;
+  color: #93c5fd;
+  border: 1px solid #3b82f6;
+  font-weight: 500;
+}
+.badge.suspicious {
+  background: #f0b429;
+  color: #111;
+  font-weight: 600;
+}
+.trace-section {
+  margin-bottom: 12px;
+}
+.trace-section-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8b93a7;
+  margin-bottom: 4px;
+}
+.trace-section-text {
+  margin: 0;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+.investigator-takeaway {
+  background: #181f2f;
+  border-radius: 6px;
+  padding: 10px 14px;
+  border-left: 3px solid #60a5fa;
+  margin-top: 10px;
+}
+.scratchpad-toggle-btn {
+  background: transparent;
+  color: #60a5fa;
+  border: 1px solid #2a3a5a;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 6px;
+}
+.scratchpad-toggle-btn:hover {
+  background: #1e293b;
+}
+.scratchpad-raw {
+  margin-top: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 11px;
+}
+
+/* Causal Confirmation Report */
+.causal-report-container {
+  margin-top: 8px;
+}
+.causal-verdict-banner {
+  background: #111c18;
+  border: 2px solid #2fbf71;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.causal-verdict-banner.pending {
+  background: #221c10;
+  border-color: #f0b429;
+}
+.recommendations-list {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+.recommendations-list li {
+  margin-bottom: 8px;
+  line-height: 1.5;
+  color: #e2e8f0;
+}

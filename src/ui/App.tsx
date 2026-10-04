@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from "react";
-import type { GoalSummary, LatentRewardStructure } from "../core/types/contracts.js";
+import type {
+  GoalSummary,
+  LatentRewardStructure,
+  TraceNarrative,
+  CausalConfirmationReport,
+} from "../core/types/contracts.js";
 import type { LatentRewardReplayReport } from "../forensics/replay/contracts.js";
 
 interface Claim {
@@ -49,6 +54,8 @@ interface Simulation {
 interface Report {
   episodeId: string;
   goalSummary?: GoalSummary;
+  traceNarrative?: TraceNarrative;
+  causalReport?: CausalConfirmationReport;
   claims: Claim[];
   traces: Trace[];
   hypothesisSet: { hypotheses: Hypothesis[]; epistemicDisclaimer: string; discriminatingTests: Test[] };
@@ -63,6 +70,14 @@ export function App() {
   const [jsonl, setJsonl] = useState("");
   const [episodeId, setEpisodeId] = useState("real_aivillage_episode");
   const [report, setReport] = useState<Report | null>(null);
+  const [expandedScratchpads, setExpandedScratchpads] = useState<Record<string, boolean>>({});
+
+  function toggleScratchpad(groupId: string) {
+    setExpandedScratchpads((prev) => ({
+      ...prev,
+      [groupId]: !prev[groupId],
+    }));
+  }
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [usePython, setUsePython] = useState(true);
@@ -249,20 +264,120 @@ export function App() {
           </section>
 
           <section className="panel">
-            <h2>3. Reasoning traces vs. external claims</h2>
-            {report.traces.length === 0 && <p className="muted">No scratchpads found in this episode.</p>}
-            {report.traces.map((t) => (
-              <div key={t.recordId} className="trace">
-                <div className="muted">{t.recordId} · {t.agentId} · {t.timestamp}</div>
-                <pre>{t.scratchpadContent}</pre>
-                {t.contradictionDelta && (
-                  <div className="delta">
-                    <strong>Divergence:</strong> internal thought vs. claim {t.contradictionDelta.claimId}:
-                    <em> “{t.contradictionDelta.externalReportText}”</em>
-                  </div>
-                )}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h2 style={{ margin: 0 }}>3. Reasoning traces & LLM Narrative Synthesis</h2>
+              {report.traceNarrative && (
+                <span className="badge" style={{ background: "#4f7cff" }}>
+                  LLM Summarized
+                </span>
+              )}
+            </div>
+
+            {report.traceNarrative && (
+              <div className="narrative-summary">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <strong>🤖 Incident Executive Narrative:</strong>
+                  <span className="badge agent-badge">Cross-Agent Monologue Synthesis</span>
+                </div>
+                <p style={{ lineHeight: 1.6, margin: 0 }}>{report.traceNarrative.overallExecutiveSummary}</p>
               </div>
-            ))}
+            )}
+
+            {report.traceNarrative && report.traceNarrative.groupExplanations.length > 0 ? (
+              <div className="group-explanations">
+                {report.traceNarrative.groupExplanations.map((g) => {
+                  const isExpanded = expandedScratchpads[g.groupId];
+                  const rawTrace = report.traces.find((t) => g.recordsInvolved.includes(t.recordId));
+
+                  return (
+                    <div
+                      key={g.groupId}
+                      className={`trace-card ${
+                        g.divergenceLevel === "DECEPTIVE_FABRICATION"
+                          ? "deceptive"
+                          : g.divergenceLevel === "SUSPICIOUS_SHORTCUT"
+                          ? "suspicious"
+                          : "benign"
+                      }`}
+                    >
+                      <div className="trace-card-header">
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span className="trace-card-title">{g.title}</span>
+                          {g.agentIds.map((a) => (
+                            <span key={a} className="badge agent-badge">{a}</span>
+                          ))}
+                        </div>
+                        <span
+                          className={`badge ${
+                            g.divergenceLevel === "DECEPTIVE_FABRICATION"
+                              ? "deceptive"
+                              : g.divergenceLevel === "SUSPICIOUS_SHORTCUT"
+                              ? "suspicious"
+                              : "benign"
+                          }`}
+                        >
+                          {g.divergenceLevel === "DECEPTIVE_FABRICATION"
+                            ? "🚨 Deceptive Divergence"
+                            : g.divergenceLevel === "SUSPICIOUS_SHORTCUT"
+                            ? "⚠️ Shortcut Divergence"
+                            : "✅ Aligned Monologue"}
+                        </span>
+                      </div>
+
+                      <div className="trace-section">
+                        <span className="trace-section-label">What Happened</span>
+                        <p className="trace-section-text">{g.whatHappened}</p>
+                      </div>
+
+                      <div className="trace-section">
+                        <span className="trace-section-label">Internal Monologue & Thought Analysis</span>
+                        <p className="trace-section-text">{g.internalMonologueAnalysis}</p>
+                        {rawTrace && (
+                          <div>
+                            <button
+                              type="button"
+                              className="scratchpad-toggle-btn"
+                              onClick={() => toggleScratchpad(g.groupId)}
+                            >
+                              {isExpanded ? "Hide Raw Scratchpad ▴" : "View Raw Scratchpad ▾"}
+                            </button>
+                            {isExpanded && (
+                              <pre className="scratchpad-raw">{rawTrace.scratchpadContent}</pre>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="trace-section">
+                        <span className="trace-section-label">Outward Action / Public Claim</span>
+                        <p className="trace-section-text">{g.outwardActionAnalysis}</p>
+                      </div>
+
+                      <div className="trace-section investigator-takeaway">
+                        <span className="trace-section-label">Investigator Finding</span>
+                        <p className="trace-section-text"><strong>Takeaway:</strong> {g.investigatorFinding}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <>
+                {report.traces.length === 0 && <p className="muted">No scratchpads found in this episode.</p>}
+                {report.traces.map((t) => (
+                  <div key={t.recordId} className="trace">
+                    <div className="muted">{t.recordId} · {t.agentId} · {t.timestamp}</div>
+                    <pre>{t.scratchpadContent}</pre>
+                    {t.contradictionDelta && (
+                      <div className="delta">
+                        <strong>Divergence:</strong> internal thought vs. claim {t.contradictionDelta.claimId}:
+                        <em> “{t.contradictionDelta.externalReportText}”</em>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
           </section>
 
           <section className="panel">
@@ -382,31 +497,108 @@ export function App() {
             </section>
           )}
 
-          {report.latentRewardReplay && (
-            <section className="panel">
-              <h2>8. Isolated Replay Rollouts & Causal Confirmation</h2>
-              {report.latentRewardReplay.inferredOperativeReward && (
-                <div className="delta" style={{ marginBottom: 12 }}>
-                  <strong>Inferred Operative Reward:</strong> <code>{report.latentRewardReplay.inferredOperativeReward}</code>
-                </div>
+          <section className="panel">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h2 style={{ margin: 0 }}>8. Isolated Replay Rollouts & Causal Confirmation</h2>
+              {report.causalReport && (
+                <span className="badge" style={{ background: "#2fbf71", color: "#000", fontWeight: "bold" }}>
+                  LLM Causal Report
+                </span>
               )}
-              {report.latentRewardReplay.evaluations.map((ev) => (
-                <div key={ev.probeId} className="trace">
-                  <div>
-                    <strong>Archetype: {ev.archetype}</strong> → Verdict:{" "}
-                    <code className={`badge ${ev.verdict === "CONFIRMED" ? "benign" : "deceptive"}`}>
-                      {ev.verdict}
-                    </code>{" "}
-                    ({Math.round(ev.confirmedScore * 100)}% consistency across {ev.rolloutResults.length} rollouts)
+            </div>
+
+            {report.causalReport && (
+              <div className="causal-report-container">
+                <div
+                  className={`causal-verdict-banner ${
+                    report.causalReport.executiveVerdict.includes("Achieved") ? "confirmed" : "pending"
+                  }`}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <strong>⚖️ Executive Causal Confirmation Verdict:</strong>
+                    <span className="badge agent-badge">Pearl Layer 3 Evaluated</span>
                   </div>
-                  <div className="muted">{ev.divergenceSummary}</div>
+                  <div style={{ fontSize: "1.15rem", fontWeight: "600", lineHeight: 1.4 }}>
+                    {report.causalReport.executiveVerdict}
+                  </div>
                 </div>
-              ))}
-              <div className="muted" style={{ marginTop: 12, fontStyle: "italic" }}>
-                {report.latentRewardReplay.epistemicDisclaimer}
+
+                <div className="panel" style={{ background: "#11141c", border: "1px solid #2a3040", margin: "16px 0" }}>
+                  <h3 style={{ margin: "0 0 8px 0", color: "#90cdf4" }}>🔬 Pearl Causal Intervention Mechanism (do(X = x&apos;))</h3>
+                  <p style={{ lineHeight: 1.6, margin: 0 }}>{report.causalReport.interventionMechanism}</p>
+                </div>
+
+                <div style={{ margin: "16px 0" }}>
+                  <h3 style={{ margin: "0 0 10px 0" }}>Behavior Divergence: Observational Baseline vs. Counterfactual Intervention</h3>
+                  <div className="cards" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                    <div className="card" style={{ borderColor: "#e5484d", background: "#181216" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <strong>Observational World (X = x)</strong>
+                        <span className="badge deceptive">Baseline</span>
+                      </div>
+                      <p style={{ lineHeight: 1.5, margin: "6px 0" }}>
+                        {report.causalReport.counterfactualBehaviorComparison.observationalBaseline}
+                      </p>
+                    </div>
+
+                    <div className="card" style={{ borderColor: "#2fbf71", background: "#101815" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <strong>Counterfactual Intervention (do(X = x&apos;))</strong>
+                        <span className="badge benign">N=3 Rollouts (T=0.4)</span>
+                      </div>
+                      <p style={{ lineHeight: 1.5, margin: "6px 0" }}>
+                        {report.causalReport.counterfactualBehaviorComparison.counterfactualIntervention}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="delta" style={{ marginTop: 10, padding: "8px 12px", background: "#1c2230", borderRadius: 6 }}>
+                    <strong>Causal Significance:</strong> {report.causalReport.counterfactualBehaviorComparison.causalDivergenceSignificance}
+                  </div>
+                </div>
+
+                <div style={{ margin: "16px 0" }}>
+                  <h3 style={{ margin: "0 0 8px 0" }}>Operative Reward Function Inversion</h3>
+                  <p style={{ lineHeight: 1.6, margin: 0, color: "#d1d5db" }}>{report.causalReport.rewardFunctionAnalysis}</p>
+                </div>
+
+                <div style={{ margin: "16px 0" }}>
+                  <h3 style={{ margin: "0 0 10px 0" }}>🛡️ Forensic Remedial Recommendations</h3>
+                  <ul className="recommendations-list">
+                    {report.causalReport.remedialRecommendations.map((rec, i) => (
+                      <li key={i}>{rec}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-            </section>
-          )}
+            )}
+
+            {report.latentRewardReplay && (
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ margin: "0 0 10px 0" }}>Underlying Replay Probes & Rollout Consistency</h3>
+                {report.latentRewardReplay.inferredOperativeReward && (
+                  <div className="delta" style={{ marginBottom: 12 }}>
+                    <strong>Inferred Operative Reward:</strong> <code>{report.latentRewardReplay.inferredOperativeReward}</code>
+                  </div>
+                )}
+                {report.latentRewardReplay.evaluations.map((ev) => (
+                  <div key={ev.probeId} className="trace">
+                    <div>
+                      <strong>Archetype: {ev.archetype}</strong> → Verdict:{" "}
+                      <code className={`badge ${ev.verdict === "CONFIRMED" ? "benign" : "deceptive"}`}>
+                        {ev.verdict}
+                      </code>{" "}
+                      ({Math.round(ev.confirmedScore * 100)}% consistency across {ev.rolloutResults.length} rollouts)
+                    </div>
+                    <div className="muted">{ev.divergenceSummary}</div>
+                  </div>
+                ))}
+                <div className="muted" style={{ marginTop: 12, fontStyle: "italic" }}>
+                  {report.causalReport?.epistemicCaveat ?? report.latentRewardReplay.epistemicDisclaimer}
+                </div>
+              </div>
+            )}
+          </section>
         </>
       )}
     </div>

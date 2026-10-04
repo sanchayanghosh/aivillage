@@ -13,23 +13,28 @@ import {
 } from "./ReplayDesigner.js";
 import type { EpisodeAnalysis } from "../core/episodes/EpisodeLoader.js";
 import type {
+  CausalConfirmationReport,
   ForensicsHypothesisSet,
   GoalSummary,
   LatentRewardStructure,
   SimulationResult,
+  TraceNarrative,
 } from "../core/types/contracts.js";
 
 import { runLatentRewardReplaySuite, type LatentRewardReplayReport } from "./replay/index.js";
+import { ForensicNarrativeSynthesizer } from "./ForensicNarrativeSynthesizer.js";
 
 export interface ForensicsReport {
   episodeId: string;
   goalSummary: GoalSummary;
+  traceNarrative?: TraceNarrative;
   claims: EpisodeAnalysis["claims"];
   traces: EpisodeAnalysis["traces"];
   hypothesisSet: ForensicsHypothesisSet;
   simulation: SimulationResult[];
   latentRewardReplay?: LatentRewardReplayReport;
   latentRewardStructure?: LatentRewardStructure;
+  causalReport?: CausalConfirmationReport;
   model: string;
 }
 
@@ -140,15 +145,25 @@ export async function runForensics(analysis: EpisodeAnalysis): Promise<Forensics
     ],
   };
 
+  const synthesizer = new ForensicNarrativeSynthesizer(model);
+  const traceNarrative = await synthesizer.synthesizeTraceNarrative(analysis, hypothesisSet);
+  const causalReport = await synthesizer.synthesizeCausalReport(
+    latentRewardReplay,
+    latentRewardStructure,
+    hypothesisSet,
+  );
+
   return {
     episodeId: analysis.packet.episodeId,
     goalSummary,
+    traceNarrative,
     claims: analysis.claims,
     traces: analysis.traces,
     hypothesisSet,
     simulation,
     latentRewardReplay,
     latentRewardStructure,
+    causalReport,
     model: model.name,
   };
 }
