@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 import { analyzeEpisode } from "../core/episodes/EpisodeLoader.js";
 import { runForensics } from "../forensics/runForensics.js";
 
+try {
+  process.loadEnvFile?.();
+} catch {
+  // ignore if .env is missing
+}
+
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../tests/fixtures");
 const PORT = Number(process.env.FORENSICS_API_PORT ?? 3210);
 

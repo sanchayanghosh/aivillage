@@ -13,6 +13,44 @@ export interface HypothesisModel {
   generate(prompt: string): Promise<unknown>;
 }
 
+export class GeminiHypothesisModel implements HypothesisModel {
+  readonly name = "gemini";
+  constructor(
+    private readonly apiKey: string = process.env.GEMINI_API_KEY ?? "",
+    private readonly model: string = process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
+  ) {}
+
+  async generate(prompt: string): Promise<unknown> {
+    if (!this.apiKey) {
+      throw new Error("GEMINI_API_KEY environment variable is required for GeminiHypothesisModel.");
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.2,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gemini API request failed [${res.status}]: ${errText}`);
+    }
+
+    const data = (await res.json()) as any;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error("Gemini returned empty candidate output");
+    }
+    return JSON.parse(text);
+  }
+}
+
 export class OllamaHypothesisModel implements HypothesisModel {
   readonly name = "ollama";
   constructor(

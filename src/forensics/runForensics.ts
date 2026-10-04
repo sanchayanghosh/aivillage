@@ -1,4 +1,9 @@
-import { ForensicsHypothesisEngine, OfflineDeterministicModel, OllamaHypothesisModel } from "./HypothesisEngine.js";
+import {
+  ForensicsHypothesisEngine,
+  GeminiHypothesisModel,
+  OfflineDeterministicModel,
+  OllamaHypothesisModel,
+} from "./HypothesisEngine.js";
 import {
   ReplayDesigner,
   ShortcutPreferencePolicy,
@@ -31,9 +36,11 @@ function defaultIntervenedEnv(): MockToolEnvironment {
 
 export async function runForensics(analysis: EpisodeAnalysis): Promise<ForensicsReport> {
   const model =
-    process.env.FORENSICS_MODEL === "ollama"
-      ? new OllamaHypothesisModel(process.env.OLLAMA_ENDPOINT, process.env.OLLAMA_MODEL)
-      : new OfflineDeterministicModel();
+    process.env.FORENSICS_MODEL === "gemini" || (!process.env.FORENSICS_MODEL && process.env.GEMINI_API_KEY)
+      ? new GeminiHypothesisModel(process.env.GEMINI_API_KEY, process.env.GEMINI_MODEL)
+      : process.env.FORENSICS_MODEL === "ollama"
+        ? new OllamaHypothesisModel(process.env.OLLAMA_ENDPOINT, process.env.OLLAMA_MODEL)
+        : new OfflineDeterministicModel();
 
   const engine = new ForensicsHypothesisEngine(model);
   const hypothesisSet = await engine.generateHypotheses(analysis.packet, analysis.traces);
