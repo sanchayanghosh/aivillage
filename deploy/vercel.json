@@ -1,0 +1,10 @@
+{
+  "framework": null,
+  "buildCommand": "",
+  "installCommand": "",
+  "outputDirectory": ".",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://swarm-evidence-graph-api.onrender.com/api/:path*" },
+    { "source": "/app", "destination": "/index.html" }
+  ]
+}
