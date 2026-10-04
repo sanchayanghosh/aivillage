@@ -1,0 +1,134 @@
+{
+ "scenarios": 48,
+ "plantedClaims": 42,
+ "formatDetectionAccuracy": 100,
+ "claimExtraction": {
+  "keyword": {
+   "recall": 83.3,
+   "precision": 58.3,
+   "falseAlarmOnNoClaimTranscripts": "4/12"
+  },
+  "rules": {
+   "recall": 90.5,
+   "precision": 38.3,
+   "falseAlarmOnNoClaimTranscripts": "7/12"
+  },
+  "jev": {
+   "recall": 100,
+   "precision": 57.9,
+   "falseAlarmOnNoClaimTranscripts": "1/12"
+  }
+ },
+ "verdictAccuracy": {
+  "rules": 28.6,
+  "jev": 73.8,
+  "easy": 76.2,
+  "hard": 71.4
+ },
+ "verdictMatrix": {
+  "rules": {
+   "SUPPORTED->UNRESOLVED": 8,
+   "SUPPORTED->SUPPORTED": 3,
+   "SUPPORTED->CONTRADICTED": 5,
+   "SUPPORTED->MISSED": 2,
+   "CONTRADICTED->CONTRADICTED": 6,
+   "CONTRADICTED->UNRESOLVED": 7,
+   "CONTRADICTED->MISSED": 1,
+   "UNRESOLVED->UNRESOLVED": 3,
+   "UNRESOLVED->SUPPORTED": 2,
+   "UNRESOLVED->MISSED": 1,
+   "CONTRADICTED->SUPPORTED": 4
+  },
+  "jev": {
+   "SUPPORTED->SUPPORTED": 14,
+   "CONTRADICTED->CONTRADICTED": 15,
+   "UNRESOLVED->CONTRADICTED": 3,
+   "UNRESOLVED->SUPPORTED": 1,
+   "UNRESOLVED->UNRESOLVED": 2,
+   "CONTRADICTED->SUPPORTED": 3,
+   "SUPPORTED->CONTRADICTED": 4
+  }
+ },
+ "byKind": {
+  "endorsed_true_claim": {
+   "rules": "1/6",
+   "jev": "6/6"
+  },
+  "false_after_failure": {
+   "rules": "3/6",
+   "jev": "6/6"
+  },
+  "no_evidence": {
+   "rules": "3/6",
+   "jev": "2/6"
+  },
+  "overwritten": {
+   "rules": "0/6",
+   "jev": "4/6"
+  },
+  "retry_success": {
+   "rules": "1/6",
+   "jev": "5/6"
+  },
+  "two_tasks": {
+   "rules": "4/12",
+   "jev": "8/12"
+  }
+ },
+ "flaggingContradictedClaims": {
+  "keywordBaseline": {
+   "flagged": 60,
+   "precision": 26.7,
+   "recall": 88.9
+  },
+  "ours": {
+   "flagged": 30,
+   "precision": 70,
+   "recall": 116.7
+  }
+ },
+ "judgeQuestionClaimsCompletion": {
+  "tp": 42,
+  "fp": 28,
+  "fn": 0,
+  "tn": 189,
+  "precision": 60,
+  "recall": 100
+ },
+ "leadFinder": {
+  "contradictedClaimsCovered": "18/18",
+  "route2Precision": 77.3,
+  "cleanTranscriptsWithRoute2Alarm": "4/30"
+ },
+ "episodes": {
+  "twoTaskTranscripts": 6,
+  "pairwiseF1Structural": 29.8,
+  "pairwiseF1WithSemanticLinks": 71.1,
+  "suspiciousEpisodeRankedAboveTrueOne": "1/6"
+ },
+ "judgeAgreementJevVsOpenAI": {
+  "rows": 660,
+  "agreeAt0_5": 94.1,
+  "meanAbsProbabilityDiff": 0.093
+ },
+ "wallTimeSeconds": {
+  "jevPipeline": 39,
+  "openaiLeadFinderOnly": 194
+ },
+ "judgeRequests": {
+  "jev": {
+   "asked": 1570,
+   "cacheHits": 505,
+   "parseErrors": 0,
+   "modelErrors": 0,
+   "requests": 1039
+  },
+  "openai": {
+   "asked": 660,
+   "cacheHits": 12,
+   "parseErrors": 0,
+   "modelErrors": 0,
+   "requests": 648
+  }
+ }
+}

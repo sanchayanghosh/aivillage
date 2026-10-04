@@ -120,6 +120,10 @@ libfx loads a WebAssembly module that needs JavaScript Promise Integration: Chro
 - **Audit store.** SQLite with three partitions: discovery rules, classifier outputs, and verified findings. Analyst overrides need a justification of at least 10 characters. On Render's free plan the disk is ephemeral.
 - **Reports as PDF.** The Report panel has a Download PDF button, and the agent can trigger it.
 
+## Benchmark
+
+Synthetic transcripts with known truth, run with the code frozen on a held-out set: verdict accuracy 74% for the judge-assisted pipeline (29% for rules), contradicted claims flagged at 85% precision and 94% recall against 29% and 72% for keyword search. Useful for triage, not for unattended verdicts. Details, limits and the failure modes are in [`docs/BENCHMARK.md`](docs/BENCHMARK.md).
+
 ## Other datasets
 
 | Dataset | What it holds | Fit |

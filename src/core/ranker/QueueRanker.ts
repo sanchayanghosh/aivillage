@@ -102,7 +102,8 @@ export async function rankQueue(opts: { episodes: Episode[]; records: SourceReco
 
   const ranked: RankedEpisode[] = per.map((p, i) => {
     const scores = { relevance: rel[i], traceability: trace[i], consequence: cons[i], uncertainty: unc[i], diversity: diversity[i] };
-    const suspicion = (cons[i] + unc[i] + contra[i]) / 3;
+    // Contradicted claims are the strongest sign of trouble, so they carry half the suspicion score.
+    const suspicion = 0.5 * contra[i] + 0.25 * unc[i] + 0.25 * cons[i];
     const utility = (rel[i] + trace[i] + diversity[i]) / 3;
     const total = (rel[i] * WEIGHTS.relevance + trace[i] * WEIGHTS.traceability + cons[i] * WEIGHTS.consequence + unc[i] * WEIGHTS.uncertainty + diversity[i] * WEIGHTS.diversity) / 5;
     const notes: string[] = [];
