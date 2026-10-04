@@ -34,6 +34,8 @@ export async function runLlmTurn(gatewayBody: string, config: LlmConfig = llmCon
       model: config.model,
       messages,
       tools: tools.length ? tools : undefined,
+      // gpt-5 chat completions reject function tools unless reasoning is off.
+      ...(config.model.startsWith("gpt-5") ? { reasoning_effort: "none" } : {}),
       stream: true,
       stream_options: { include_usage: true },
     }),

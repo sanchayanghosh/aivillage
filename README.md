@@ -150,3 +150,9 @@ npm run build
 ```
 
 Design documents are in `docs/`: the PRD, the technical design, and the latent reward reconstruction spec.
+
+## Deployment
+
+- **API** on Render, from `render.yaml`: `npm install`, then `npm run start:api`. Set `OPENAI_API_KEY` and `HF_TOKEN` as environment variables. Auto-deploys on push to the branch.
+- **UI** on Vercel as a static build. Vercel's framework detection trips on the Python scripts in this repo, so deploy the built output: `npm run build`, copy `dist/` and `deploy/vercel.json` into an empty folder, then run `vercel deploy --prod` there. The rewrite in `deploy/vercel.json` forwards `/api/*` to the Render service, so the browser and the agent keep using relative `/api` URLs.
+- The 380 MB dataset is not deployed. Bundled fixtures and imported transcripts work in production. Raw dataset rescans need a local checkout.

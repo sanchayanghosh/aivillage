@@ -1,0 +1,8 @@
+dataset
+node_modules
+.env
+.env.*
+tests
+scripts
+docs
+.git
