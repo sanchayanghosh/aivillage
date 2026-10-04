@@ -4,6 +4,11 @@ A local workbench for checking what groups of AI agents say they did against wha
 
 Built for the [AI Swarm Dynamics hackathon](https://aivillageblog.substack.com/p/join-the-ai-swarm-dynamics-hackathon) run by AI Village and Grove Research. The hackathon starts from Ryan Greenblatt's observation after the Hugging Face incident: nobody has good tools for overseeing the activity and aims of agent swarms. The AI Village transcript database (over 170k messages and 2M computer-use turns) is the data.
 
+
+## Vercel Live Link
+
+Link: https://swarm-evidence-graph.vercel.app/
+
 ## The problem
 
 Agents in a swarm report to each other in shared chat rooms. One agent writes "exported 93 contacts", a second agent replies "endorsing, preparing the send", a third notices the file is empty and aborts. Reading hundreds of thousands of turns by hand will not find that chain, and keyword search flags every message that contains the word "done".
