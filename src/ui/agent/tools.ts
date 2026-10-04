@@ -23,7 +23,7 @@ const need = (id: string) => {
 function trimReport(r: any) {
   if (!r) return null;
   return {
-    episodeId: r.episodeId, model: r.model, goalSummary: r.goalSummary, traceNarrative: r.traceNarrative, causalReport: r.causalReport,
+    episodeId: r.episodeId, model: r.model, provenance: r.provenance, goalSummary: r.goalSummary, traceNarrative: r.traceNarrative, causalReport: r.causalReport,
     claims: r.claims, traces: r.traces?.map((t: any) => ({ recordId: t.recordId, agentId: t.agentId, timestamp: t.timestamp, scratchpad: String(t.scratchpadContent).slice(0, 1200), contradictionDelta: t.contradictionDelta })),
     hypotheses: r.hypothesisSet?.hypotheses, tests: r.hypothesisSet?.discriminatingTests, disclaimer: r.hypothesisSet?.epistemicDisclaimer,
     simulation: r.simulation, latentRewardStructure: r.latentRewardStructure,
@@ -56,7 +56,20 @@ export const STUDIO_TOOLS: AgentTool[] = [
   { name: "list_datasets", description: "List episode fixtures the backend can load (plus the built-in mock case).", inputSchema: obj({}), execute: () => json({ current: studio.get().dataset, available: ["mock", ...studio.get().graphFixtures] }) },
   { name: "load_dataset", description: "Load an episode fixture (for example real_aivillage_episode.jsonl) into the Step 1 graph, or 'mock'.", inputSchema: obj({ name: { type: "string" } }, ["name"]), execute: async (i) => { await actions.loadDataset(i.name); return `Loaded ${i.name}: ${studio.get().nodes.length} entities.`; } },
   { name: "import_transcript", description: "Import any agent transcript the analyst pasted (JSONL, JSON, OpenAI or Anthropic message formats, or plain text like 'agent-a: message'). Normalizes it, loads it into the graph, and returns the ingest report with warnings to relay to the analyst.", inputSchema: obj({ name: { type: "string" }, transcript: { type: "string" } }, ["transcript"]), execute: async (i) => json(await actions.importTranscript(i.name || "pasted-transcript", String(i.transcript))) },
-  { name: "run_forensics", description: "Load a fixture into the Forensics Studio and run Step 2 (traces, hypotheses, tests, replay). Takes up to a minute.", inputSchema: obj({ fixture: { type: "string" } }), execute: async (i) => { actions.switchView("forensics"); await new Promise((r) => setTimeout(r, 150)); const name = i.fixture ?? (studio.get().dataset !== "mock" ? studio.get().dataset : studio.get().forensics.fixtures[0]); if (!name) throw new Error("No fixture available."); await actions.loadForensicsFixture(name); await actions.runForensics(); const f = studio.get().forensics; if (f.error) throw new Error(f.error); return `Forensics finished for ${name}. Call get_forensics_report for the data.`; } },
+  { name: "run_lead_finder", description: "Run the Semantic Judge Lead Finder (SQL-style pre-filter then fixed model questions) on the loaded transcript, then return the leads.", inputSchema: obj({}), execute: async () => { await actions.runLeadFinder(); const st = studio.get(); if (st.leadsError) throw new Error(st.leadsError); return json(st.leads?.leads ?? "The sample case uses built-in sample leads."); } },
+  { name: "run_forensics", description: "Run Step 2 (traces, hypotheses, tests, replay) on the loaded transcript, or on a named bundled fixture. Takes up to a minute.", inputSchema: obj({ fixture: { type: "string" } }), execute: async (i) => {
+    const st = studio.get();
+    actions.switchView("forensics");
+    await new Promise((r) => setTimeout(r, 200));
+    const imported = st.dataset.startsWith("upload:");
+    const name: string | undefined = i.fixture ?? (imported ? undefined : st.dataset === "mock" ? st.graphFixtures.find((f) => f.startsWith("june11")) : st.dataset !== "none" ? st.dataset : st.graphFixtures[0]);
+    if (name) await actions.loadForensicsFixture(name);
+    else if (!imported) throw new Error("Nothing is loaded. Import a transcript or name a fixture.");
+    await actions.runForensics();
+    const f = studio.get().forensics;
+    if (f.error) throw new Error(f.error);
+    return `Forensics finished for ${name ?? st.dataset.slice(7)}. Call get_forensics_report for the data.`;
+  } },
   { name: "get_forensics_report", description: "Return the latest Step 2 report: claims, reasoning traces with divergences, narrative cards, hypotheses, discriminating tests, simulation, latent reward replay.", inputSchema: obj({}), execute: () => { const r = studio.get().forensics.report; return r ? json(trimReport(r)) : "No Step 2 report yet. Call run_forensics."; } },
   { name: "write_report", description: "Publish the final verbose report (markdown) into the Report panel. Call once, after gathering evidence.", inputSchema: obj({ markdown: { type: "string" } }, ["markdown"]), execute: (i) => { actions.saveReport(String(i.markdown), "agent"); return "Report published in the Report panel."; } },
 ];

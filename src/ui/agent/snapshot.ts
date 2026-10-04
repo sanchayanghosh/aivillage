@@ -22,7 +22,7 @@ export function snapshot(s: StudioState, opts: { full?: boolean } = {}) {
     claims,
     ...(opts.full ? { entities: s.nodes.map((n) => ({ id: n.id, type: n.nodeType, label: n.label })) } : {}),
     panels: { open: s.bottomOpen, tab: s.bottomTab, leadThreshold: s.leadThreshold },
-    leads: s.dataset === "mock" ? leads.map((l) => ({ id: l.id, route: l.routeName, score: l.score, emits: l.score >= s.leadThreshold, episode: l.episode, summary: l.summary, control: Boolean(l.control) })) : "Lead Finder runs on the mock case only for now.",
+    leads: s.dataset !== "mock" ? (s.leads ? s.leads.leads.map((l) => ({ id: l.id, route: l.routeName, score: l.score, summary: l.summary })) : "Lead Finder has not run on this data. Use run_lead_finder.") : leads.map((l) => ({ id: l.id, route: l.routeName, score: l.score, emits: l.score >= s.leadThreshold, episode: l.episode, summary: l.summary, control: Boolean(l.control) })),
     semanticQuestions: s.dataset === "mock" ? questions.map((q) => ({ id: `${q.questionId}@${q.version}`, precision: q.precision, recall: q.recall, evalRows: q.evalRows })) : undefined,
     judgmentsLogged: s.dataset === "mock" ? judgments.length : 0,
     unmappedEventTypes: s.dataset === "mock" ? unmappedEventTypes.filter((u) => !u.mapped).map((u) => u.eventType) : [],

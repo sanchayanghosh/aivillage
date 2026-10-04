@@ -62,6 +62,7 @@ interface Report {
   hypothesisSet: { hypotheses: Hypothesis[]; epistemicDisclaimer: string; discriminatingTests: Test[] };
   simulation: Simulation[];
   model: string;
+  provenance?: { engine: string; hypotheses: string; replay: string; simulation: string; notes: string[] };
   latentRewardReplay?: LatentRewardReplayReport;
   latentRewardStructure?: LatentRewardStructure;
 }
@@ -86,6 +87,7 @@ export function App() {
   const imported = useStudio((x) => x.imported);
   useEffect(() => {
     if (!imported) return;
+    pending.current = null;
     setJsonl(imported.jsonl);
     setEpisodeId(imported.name.replace(/\.[^.]+$/, ""));
     setReport(null);
@@ -259,6 +261,20 @@ export function App() {
       {report && (
         <>
           <p className="disclaimer">⚠️ {report.hypothesisSet.epistemicDisclaimer}</p>
+          {report.provenance && (
+            <section className="panel provenance">
+              <h2>How this report was produced</h2>
+              <table>
+                <tbody>
+                  <tr><th>Engine</th><td>{report.provenance.engine}</td></tr>
+                  <tr><th>Hypotheses</th><td>{report.provenance.hypotheses}</td></tr>
+                  <tr><th>Replay rollouts</th><td><b>{report.provenance.replay}</b></td></tr>
+                  <tr><th>Simulation</th><td>{report.provenance.simulation}</td></tr>
+                </tbody>
+              </table>
+              {report.provenance.notes.map((n) => <p key={n} className="muted">{n}</p>)}
+            </section>
+          )}
           <p className="muted">Model backend: {report.model} · Episode: {report.episodeId}</p>
 
           {report.goalSummary && (
@@ -445,7 +461,7 @@ export function App() {
           </section>
 
           <section className="panel">
-            <h2>6. Counterfactual simulation (do(X = x&apos;))</h2>
+            <h2>6. Counterfactual simulation (scripted illustration)</h2>
             <div className="cards">
               {report.simulation.map((s, idx) => (
                 <div key={idx} className={`card ${s.signal === "REAL_COUNT_OBSERVED" || s.signal === "HONEST_ADOPTION" ? "benign" : "deceptive"}`}>
@@ -621,7 +637,7 @@ export function App() {
                   <div key={ev.probeId} className="trace">
                     <div>
                       <strong>Archetype: {ev.archetype}</strong> → Verdict:{" "}
-                      <code className={`badge ${ev.verdict === "CONFIRMED" ? "benign" : "deceptive"}`}>
+                      <code className={`badge ${ev.verdict === "CONFIRMED" ? "benign" : ev.verdict === "FALSIFIED" ? "deceptive" : ""}`}>
                         {ev.verdict}
                       </code>{" "}
                       ({Math.round(ev.confirmedScore * 100)}% consistency across {ev.rolloutResults.length} rollouts)

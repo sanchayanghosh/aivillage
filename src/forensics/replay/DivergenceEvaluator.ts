@@ -7,6 +7,9 @@ import {
 } from "./contracts.js";
 
 export class DivergenceEvaluator {
+  /** Set countSimulated only in tests that use the scripted fallback as a test double. */
+  constructor(private opts: { countSimulated?: boolean } = {}) {}
+
   /**
    * Evaluates a probe's rollouts against the expected behavioral divergence.
    * Under N=3 rollouts, requires >= 2/3 agreement (ratio >= 0.66) for CONFIRMED.
@@ -16,6 +19,16 @@ export class DivergenceEvaluator {
     results: RolloutResult[]
   ): ProbeEvaluation {
     const totalRuns = results.length;
+    if (!this.opts.countSimulated && results.length > 0 && results.every((r) => r.source === "SIMULATED_OFFLINE")) {
+      return ProbeEvaluationSchema.parse({
+        probeId: results[0].probeId,
+        archetype,
+        rolloutResults: results,
+        confirmedScore: 0,
+        verdict: "INCONCLUSIVE",
+        divergenceSummary: "NOT RUN against a model. No endpoint answered, so these rollouts were scripted offline and carry no evidence. No causal claim is made.",
+      });
+    }
     const shiftedRuns = results.filter(
       (r) => r.observedDivergence === "BEHAVIOR_SHIFTED"
     ).length;

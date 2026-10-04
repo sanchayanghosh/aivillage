@@ -137,9 +137,11 @@ Every tool call appears in the dock log. Overrides need a justification of at le
 
 ## Status
 
-Working: the Step 1 graph on mock data and on fixtures through the backend rule, the Step 2 pipeline on real dataset episodes, the libfx agent with its tool surface, offline and agent-written verbose reports, and the OpenAI adapter (covered by tests against a stub upstream).
+The full plan-versus-built audit is in [`docs/STATUS.md`](docs/STATUS.md). Short version:
 
-Not built yet: the Semantic Judge. The Lead Finder, Semantic Judge, Measured Detection and Coverage tables in the UI show mock values. The design is in `docs/` and the proposed changes are in the semantic-judgments note. `dataset:extract` currently builds one fixture, so graph quality on real data depends on that extraction.
+- **Built and working:** the landing page and empty-desk workbench, transcript import for any format, the Step 1 graph with the verdict rule, the Semantic Judge with a cache, the Lead Finder (routes 1, 2, 3, 4 and 6), Step 2 on any transcript, the libfx studio agent, and agent-written verbose reports.
+- **Not built:** measured precision and recall for the model questions (it needs hand-labelled rows), Route 5 goal divergence, `Q_SAME_TASK` episode linking, claim extraction by model, the queue ranker, and the audit store. The UI says "unmeasured" where numbers would go.
+- **Step 2 honesty:** replay rollouts run only when a model endpoint answers (OpenAI with your key, or `REPLAY_ENDPOINT`). Otherwise they are marked "not run" and make no causal claim. Every Step 2 report has a provenance block that says which parts were measured and which are templates or scripted illustrations.
 
 ## Development
 

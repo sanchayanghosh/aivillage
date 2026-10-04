@@ -23,6 +23,15 @@ describe("gatewayAdapter", () => {
     expect(tools).toHaveLength(1);
   });
 
+  it("splits one multi-result tool message into one chat tool message per call", () => {
+    const body = JSON.stringify({ prompt: [
+      { role: "assistant", content: [{ type: "tool-call", toolCallId: "a", toolName: "x", input: {} }, { type: "tool-call", toolCallId: "b", toolName: "y", input: {} }] },
+      { role: "tool", content: [{ type: "tool-result", toolCallId: "a", output: { value: "one" } }, { type: "tool-result", toolCallId: "b", output: { value: "two" } }] },
+    ] });
+    const { messages } = gatewayToChat(body);
+    expect(messages.filter((m) => m.role === "tool").map((m) => [m.tool_call_id, m.content])).toEqual([["a", "one"], ["b", "two"]]);
+  });
+
   it("turns streamed chunks into a tool-call finish", () => {
     const sse = openAiChunksToGateway([
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c9","function":{"name":"zoom","arguments":"{\\"action\\":"}}]}}]}',

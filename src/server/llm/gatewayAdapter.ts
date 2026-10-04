@@ -83,6 +83,14 @@ export function gatewayToChat(body: string): { messages: ChatMessage[]; tools: A
     if (!record) continue;
     const role = record.role;
     if (role !== "system" && role !== "user" && role !== "assistant" && role !== "tool") continue;
+    if (role === "tool" && Array.isArray(record.content)) {
+      // One libfx tool message can carry several results. OpenAI wants one tool message per call id.
+      const results = (record.content as Array<Record<string, unknown>>).filter((p) => p && (p.type === "tool-result" || p.type === "tool_result"));
+      if (results.length) {
+        for (const part of results) messages.push({ role: "tool", content: toolOutput([part]), tool_call_id: typeof part.toolCallId === "string" ? part.toolCallId : toolCallIdOf([part], record) });
+        continue;
+      }
+    }
     const spoken = textOf(record.content);
     const message: ChatMessage = { role, content: role === "tool" ? toolOutput(record.content) || spoken : spoken };
     const calls = role === "assistant" ? toolCallsOf(record.content) : undefined;

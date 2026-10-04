@@ -53,14 +53,18 @@ export const actions = {
   },
 
   async loadDataset(name: string) {
+    if (name === "none") {
+      studio.set({ dataset: "none", nodes: [], edges: [], selected: null, leads: null, leadsError: null, report: null, imported: null }, "cleared the workspace");
+      return;
+    }
     if (name === "mock") {
-      studio.set({ dataset: "mock", nodes: mockNodes, edges: mockEdges, selected: "claim_1", layout: "preset", hiddenTypes: [] }, "loaded the built-in mock case");
+      studio.set({ dataset: "mock", nodes: mockNodes, edges: mockEdges, selected: "claim_1", layout: "preset", hiddenTypes: [], leads: null, leadsError: null, report: null }, "loaded the built-in sample case");
       return;
     }
     const res = await fetch(`/api/graph/${encodeURIComponent(name)}`);
     if (!res.ok) throw new Error(`Could not build a graph for ${name}: ${(await res.json().catch(() => ({}))).error ?? res.status}`);
     const g = (await res.json()) as GraphPayload;
-    studio.set({ dataset: name, nodes: g.nodes, edges: g.edges, selected: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, fitTick: studio.get().fitTick + 1 }, `loaded dataset ${name} (${g.nodes.length} entities)`);
+    studio.set({ dataset: name, nodes: g.nodes, edges: g.edges, selected: null, leads: null, leadsError: null, report: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, fitTick: studio.get().fitTick + 1 }, `loaded dataset ${name} (${g.nodes.length} entities)`);
   },
 
   async refreshServer() {
@@ -90,15 +94,30 @@ export const actions = {
     if (!res.ok) throw new Error(body.error ?? `Import failed (${res.status})`);
     const g = body.graph as GraphPayload;
     studio.set({
-      dataset: `upload:${name}`, nodes: g.nodes, edges: g.edges, selected: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, report: null,
+      dataset: `upload:${name}`, nodes: g.nodes, edges: g.edges, selected: null, leads: null, leadsError: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, report: null,
       imported: { name, jsonl: body.jsonl, report: body.report, at: Date.now() }, fitTick: studio.get().fitTick + 1,
     }, `imported transcript "${name}" (${body.report.format}, ${body.report.records} records, ${body.claims} claims)`);
     return body.report as import("./store").IngestReport;
   },
+  /** Run the Semantic Judge Lead Finder on whatever is loaded (needs the server LLM key). */
+  async runLeadFinder() {
+    const s = studio.get();
+    if (s.dataset === "mock" || s.dataset === "none") { actions.openPanel("leads"); return; }
+    const body = s.dataset.startsWith("upload:") ? { transcript: s.imported?.jsonl } : { fixture: s.dataset };
+    studio.set({ leadsLoading: true, leadsError: null, bottomTab: "leads", bottomOpen: true });
+    try {
+      const res = await fetch("/api/leads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? `Lead Finder failed (${res.status})`);
+      studio.set({ leads: d, leadsLoading: false }, `Lead Finder ran: ${d.leads.length} leads, ${d.judge.asked} model questions (${d.judge.cacheHits} cached)`);
+    } catch (e) {
+      studio.set({ leadsLoading: false, leadsError: e instanceof Error ? e.message : String(e) });
+    }
+  },
   openImport(open: boolean) { studio.set({ importOpen: open }); },
 
   saveReport(markdown: string, author: "agent" | "offline") {
-    studio.set({ report: { markdown, author, at: new Date().toISOString() }, bottomTab: "report", bottomOpen: true }, `a ${author} report was written (${markdown.length} chars)`);
+    studio.set({ report: { markdown, author, at: new Date().toISOString() }, view: "graph", bottomTab: "report", bottomOpen: true }, `a ${author} report was written (${markdown.length} chars)`);
   },
   writeOfflineReport() {
     actions.saveReport(buildOfflineReport(studio.get()), "offline");

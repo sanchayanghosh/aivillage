@@ -75,4 +75,4 @@ export async function stopAgent() {
 }
 
 export const REPORT_PROMPT =
-  "Write the verbose forensic report for the current episode. Gather evidence with your tools first (state, each non-supported claim, and the Step 2 report; run Step 2 if it has not run and a fixture exists). Then publish it with write_report. After publishing, reply with two sentences saying what the report found.";
+  "Write the verbose forensic report for the current episode. Gather evidence with as few turns as possible: call independent tools in the same turn (state, inspect_entity for each non-supported claim, run_forensics if Step 2 has not run). Then publish it with write_report. After publishing, reply with two sentences saying what the report found.";

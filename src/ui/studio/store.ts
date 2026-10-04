@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { GEdge, GNode, NodeType } from "../graph/types";
-import { edges as mockEdges, nodes as mockNodes } from "../graph/mock/data";
+import type { GEdge, GNode, NodeType, LeadsPayload } from "../graph/types";
 
 export type Layout = "preset" | "breadthfirst" | "cose" | "circle" | "grid";
 export type BottomTab = "leads" | "ledger" | "judge" | "eval" | "coverage" | "report";
@@ -29,7 +28,7 @@ export interface ServerStatus {
 
 export interface StudioState {
   view: View;
-  dataset: string; // "mock" or a fixture file name
+  dataset: string; // "none", "mock", "upload:<name>" or a fixture file name
   nodes: GNode[];
   edges: GEdge[];
   selected: string | null;
@@ -52,14 +51,17 @@ export interface StudioState {
   events: string[];
   imported: { name: string; jsonl: string; report: IngestReport; at: number } | null;
   importOpen: boolean;
+  leads: LeadsPayload | null;
+  leadsLoading: boolean;
+  leadsError: string | null;
 }
 
 const initial: StudioState = {
   view: typeof location !== "undefined" && location.hash === "#forensics" ? "forensics" : "graph",
-  dataset: "mock",
-  nodes: mockNodes,
-  edges: mockEdges,
-  selected: "claim_1",
+  dataset: "none",
+  nodes: [],
+  edges: [],
+  selected: null,
   hiddenTypes: [],
   layout: "preset",
   showSemantic: true,
@@ -79,6 +81,9 @@ const initial: StudioState = {
   events: [],
   imported: null,
   importOpen: false,
+  leads: null,
+  leadsLoading: false,
+  leadsError: null,
 };
 
 let state = initial;

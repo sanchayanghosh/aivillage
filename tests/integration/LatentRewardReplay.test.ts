@@ -81,11 +81,17 @@ describe("Step 2 Deep Forensics: Latent Reward Reconstruction & Replay Harness",
     );
 
     expect(rollouts).toHaveLength(3);
-    const evaluator = new DivergenceEvaluator();
+    // The offline fallback is a scripted test double, so only count it when a test says so.
+    const evaluator = new DivergenceEvaluator({ countSimulated: true });
     const evaluation = evaluator.evaluateProbe("EFFORT_MINIMIZATION", rollouts);
 
     expect(evaluation.confirmedScore).toBeGreaterThanOrEqual(0.66);
     expect(evaluation.verdict).toBe("CONFIRMED");
+
+    // By default, scripted rollouts are "not run": no causal claim.
+    const honest = new DivergenceEvaluator().evaluateProbe("EFFORT_MINIMIZATION", rollouts);
+    expect(honest.verdict).toBe("INCONCLUSIVE");
+    expect(honest.confirmedScore).toBe(0);
   });
 
   it("runForensics runs end-to-end including latent reward replay suite", async () => {
@@ -97,6 +103,8 @@ describe("Step 2 Deep Forensics: Latent Reward Reconstruction & Replay Harness",
     expect(report.simulation.length).toBe(2);
     expect(report.latentRewardReplay).toBeDefined();
     expect(report.latentRewardReplay!.evaluations.length).toBeGreaterThanOrEqual(3);
-    expect(report.latentRewardReplay!.inferredOperativeReward).toBeDefined();
+    // No model endpoint is reachable in tests, so nothing was actually run.
+    expect(report.latentRewardReplay!.evaluations.every((e) => e.verdict === "INCONCLUSIVE")).toBe(true);
+    expect(report.provenance?.replay).toMatch(/NOT RUN/);
   });
 });

@@ -35,9 +35,9 @@ export default function Workbench() {
   return (
     <div className="wb">
       <div className="titlebar">
-        <div className="brand"><span className="logo"><svg viewBox="0 0 32 32" width="18" height="18"><circle cx="8" cy="9" r="3.5" fill="#fff"/><circle cx="24" cy="9" r="3.5" fill="#fff"/><circle cx="16" cy="24" r="3.5" fill="#fff"/><path d="M8 9l8 15 8-15M8 9h16" stroke="#fff" strokeWidth="1.6" fill="none"/></svg></span>Swarm Evidence Graph</div>
+        <a className="brand" href="/" title="Back to the landing page"><span className="logo"><svg viewBox="0 0 32 32" width="18" height="18"><circle cx="8" cy="9" r="3.5" fill="#fff"/><circle cx="24" cy="9" r="3.5" fill="#fff"/><circle cx="16" cy="24" r="3.5" fill="#fff"/><path d="M8 9l8 15 8-15M8 9h16" stroke="#fff" strokeWidth="1.6" fill="none"/></svg></span>Swarm Evidence Graph</a>
         <div className="mode"><button className={s.view === "graph" ? "on" : ""} onClick={() => actions.switchView("graph")}>Step 1 · Investigation</button><button className={s.view === "forensics" ? "on" : ""} onClick={() => actions.switchView("forensics")}>Step 2 · Forensics Studio</button></div>
-        <div className="case">Case · <b>{s.dataset === "mock" ? "June 11 2025 mailing-list incident" : s.dataset}</b> <span className="chip">{s.dataset === "mock" ? "mock data" : s.dataset.startsWith("upload:") ? "imported" : "backend fixture"}</span>
+        <div className="case">Case · <b>{s.dataset === "none" ? "no transcript loaded" : s.dataset === "mock" ? "June 11 2025 mailing-list incident" : s.dataset}</b> <span className="chip">{s.dataset === "none" ? "empty" : s.dataset === "mock" ? "sample" : s.dataset.startsWith("upload:") ? "imported" : "backend fixture"}</span>
           <span className={`chip ${s.status ? "chip-ok" : "chip-bad"}`}>{s.status ? "API online" : "API offline"}</span>
           {s.status && <span className={`chip ${s.status.huggingface.datasetPresent ? "chip-ok" : ""}`}>HF dataset {s.status.huggingface.datasetPresent ? "local" : "missing"}</span>}
         </div>
@@ -50,7 +50,7 @@ export default function Workbench() {
         <div className="ribbon">
           <div className="grp"><div className="grp-body">
             <button className="rbtn big" onClick={() => actions.openImport(true)}><span className="ri">⇪</span>Import Transcript</button>
-            <button className="rbtn big" onClick={() => actions.openPanel("leads")}><span className="ri">⌕</span>Run Lead Finder</button>
+            <button className="rbtn big" onClick={() => void actions.runLeadFinder()}><span className="ri">⌕</span>Run Lead Finder</button>
             <button className="rbtn big" onClick={() => { actions.selectNode(null); actions.fit(); }}><span className="ri">⤢</span>Zoom to Fit</button>
             <button className="rbtn big" onClick={() => actions.writeOfflineReport()}><span className="ri">≣</span>Verbose Report</button>
           </div><div className="grp-name">Investigate</div></div>
@@ -65,7 +65,8 @@ export default function Workbench() {
           <div className="grp"><div className="grp-body col">
             <label className="chk dataset">Episode
               <select value={s.dataset} onChange={(e) => !e.target.value.startsWith("upload:") && void actions.loadDataset(e.target.value).catch((err) => alert(err.message))}>
-                <option value="mock">Mock · June 11 incident</option>
+                <option value="none">— none —</option>
+                <option value="mock">Sample · June 11 incident</option>
                 {s.dataset.startsWith("upload:") && <option value={s.dataset}>{s.dataset.slice(7)} (imported)</option>}
                 {s.graphFixtures.map((f) => <option key={f} value={f}>{f}</option>)}
               </select></label>
@@ -103,6 +104,20 @@ export default function Workbench() {
             <div className="canvas-wrap">
               <GraphCanvas key={s.dataset} nodes={s.nodes} edges={s.edges} selected={s.selected} hidden={hiddenIds} showSemantic={s.showSemantic} showLater={s.showLater} layout={s.layout} expanded={s.expanded}
                 fitTick={s.fitTick} zoomTick={s.zoomTick} onSelect={(id) => actions.selectNode(id)} onToggleCluster={() => actions.setOption("expanded", !studio.get().expanded)} onReady={setCy} />
+              {s.nodes.length === 0 && (
+                <div className="empty-canvas">
+                  <div className="ec-card">
+                    <div className="ec-kicker">New investigation</div>
+                    <h2>Bring a transcript. Check it against its own evidence.</h2>
+                    <p>Paste or upload any agent transcript: JSONL, JSON, OpenAI or Anthropic message logs, or a plain text chat. The workbench finds the claims, finds the tool results, and tells you which claims the record contradicts.</p>
+                    <div className="ec-actions">
+                      <button className="btn primary" onClick={() => actions.openImport(true)}>Import a transcript</button>
+                      <button className="btn" onClick={() => void actions.loadDataset("mock")}>Load the sample incident</button>
+                    </div>
+                    {s.graphFixtures.length > 0 && <div className="ec-fix"><span>or open a bundled episode:</span>{s.graphFixtures.map((f) => <button key={f} className="link" onClick={() => void actions.loadDataset(f)}>{f}</button>)}</div>}
+                  </div>
+                </div>
+              )}
               <div className="zoom"><button onClick={() => actions.zoom(1)}>+</button><button onClick={() => actions.zoom(-1)}>−</button><button onClick={() => actions.fit()}>⤢</button></div>
               <div className="statusline">{s.nodes.length} entities · {s.edges.length} links · double-click a cluster to expand</div>
             </div>

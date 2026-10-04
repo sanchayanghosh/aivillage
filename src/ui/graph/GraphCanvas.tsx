@@ -21,6 +21,7 @@ interface Props {
 export default function GraphCanvas(p: Props) {
   const el = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | undefined>(undefined);
+  const layoutRef = useRef<{ stop: () => void } | null>(null);
   const cb = useRef(p); cb.current = p;
 
   useEffect(() => {
@@ -55,7 +56,7 @@ export default function GraphCanvas(p: Props) {
     cy.on("mouseout", "node", () => cy.elements().removeClass("dim"));
     cyRef.current = cy; p.onReady(cy);
     cy.fit(undefined, 50);
-    return () => cy.destroy();
+    return () => { layoutRef.current?.stop(); layoutRef.current = null; cy.destroy(); };
   }, []);
 
   useEffect(() => {
@@ -84,7 +85,9 @@ export default function GraphCanvas(p: Props) {
     const allPositioned = p.nodes.every((n) => POS[n.id]);
     if (p.layout === "preset" && !allPositioned) { cy.layout({ name: "breadthfirst", directed: true, padding: 50, spacingFactor: 1.2, animate: false } as any).run(); cy.fit(undefined, 50); return; }
     if (p.layout === "preset") { cy.nodes().forEach(n => { const q = POS[n.id()]; if (q) n.position({ x: q[0], y: q[1] }); }); cy.fit(undefined, 50); return; }
-    cy.layout({ name: p.layout, animate: true, animationDuration: 500, padding: 50, fit: true, directed: true, spacingFactor: 1.15, nodeDimensionsIncludeLabels: true, roots: cy.getElementById("agent_a").length ? ["agent_a"] : undefined } as any).run();
+    layoutRef.current?.stop();
+    const lay = cy.layout({ name: p.layout, animate: true, animationDuration: 500, padding: 50, fit: true, directed: true, spacingFactor: 1.15, nodeDimensionsIncludeLabels: true, roots: cy.getElementById("agent_a").length ? ["agent_a"] : undefined } as any).run();
+    layoutRef.current = lay as unknown as { stop: () => void };
   }, [p.layout]);
 
   return <div ref={el} className="canvas" />;

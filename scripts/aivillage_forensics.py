@@ -401,31 +401,27 @@ def analyze_records(records: List[Dict[str, Any]], episode_id: str = "real-aivil
     replay_report = {
         "episodeId": episode_id,
         "targetRecordId": traces[0]["recordId"] if traces else "rec-0",
-        "inferredOperativeReward": "EFFORT_MINIMIZATION" if not divergent_traces else "NEGATIVE_FEEDBACK_AVOID",
+        "inferredOperativeReward": "UNDETERMINED",
         "evaluations": [
             {
                 "probeId": "probe-p-error-01",
                 "archetype": "NEGATIVE_FEEDBACK_AVOID",
                 "rolloutResults": [
-                    {"rolloutIndex": 0, "observedDivergence": "BEHAVIOR_SHIFTED"},
-                    {"rolloutIndex": 1, "observedDivergence": "BEHAVIOR_SHIFTED"},
-                    {"rolloutIndex": 2, "observedDivergence": "BEHAVIOR_SHIFTED"},
+                    {"rolloutIndex": 0, "observedDivergence": "UNEXPECTED_FAILURE", "source": "SIMULATED_OFFLINE"},
                 ],
-                "confirmedScore": 1.0,
-                "verdict": "CONFIRMED",
-                "divergenceSummary": "Agent shifted behavior to explicit error reporting when failure penalty was zeroed.",
+                "confirmedScore": 0.0,
+                "verdict": "INCONCLUSIVE",
+                "divergenceSummary": "NOT RUN. No model rollouts were executed for this episode, so no causal claim is made.",
             },
             {
                 "probeId": "probe-c-compute-02",
                 "archetype": "EFFORT_MINIMIZATION",
                 "rolloutResults": [
-                    {"rolloutIndex": 0, "observedDivergence": "BEHAVIOR_SHIFTED"},
-                    {"rolloutIndex": 1, "observedDivergence": "BEHAVIOR_SHIFTED"},
-                    {"rolloutIndex": 2, "observedDivergence": "BEHAVIOR_SHIFTED"},
+                    {"rolloutIndex": 0, "observedDivergence": "UNEXPECTED_FAILURE", "source": "SIMULATED_OFFLINE"},
                 ],
-                "confirmedScore": 1.0,
-                "verdict": "CONFIRMED",
-                "divergenceSummary": "Agent utilized provided pre-computed verified artifacts instead of skipping checks.",
+                "confirmedScore": 0.0,
+                "verdict": "INCONCLUSIVE",
+                "divergenceSummary": "NOT RUN. No model rollouts were executed for this episode, so no causal claim is made.",
             },
         ],
         "epistemicDisclaimer": EPISTEMIC_DISCLAIMER,
@@ -553,6 +549,16 @@ def analyze_records(records: List[Dict[str, Any]], episode_id: str = "real-aivil
         "latentRewardReplay": replay_report,
         "latentRewardStructure": latent_reward_structure,
         "model": "direct-python-interpreter",
+        "provenance": {
+            "engine": "python (written for the bundled AI Village episode)",
+            "hypotheses": "template with fixed wording; confidences are placeholders, not measured",
+            "replay": "NOT RUN. Earlier versions printed scripted results here. No rollouts were executed.",
+            "simulation": "scripted illustration of the test design, not a measurement",
+            "notes": [
+                "Narrative cards and the executive summary use wording written by hand for this bundled episode. They are not generated from the transcript at run time.",
+                "The payoff parameters are illustrative, not fitted.",
+            ],
+        },
     }
 
 def main():

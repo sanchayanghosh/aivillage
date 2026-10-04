@@ -46,7 +46,7 @@ export async function runLatentRewardReplaySuite(
 
   // 3. Execute isolated rollouts
   const sandbox = new ReplaySandbox(config);
-  const evaluator = new DivergenceEvaluator();
+  const evaluator = new DivergenceEvaluator({ countSimulated: config.countSimulated });
   const evaluations: ProbeEvaluation[] = [];
 
   for (const probe of probes) {

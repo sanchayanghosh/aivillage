@@ -11,10 +11,13 @@ export interface ReplaySandboxConfig {
   temperature?: number; // Standard: 0.4
   rolloutCount?: number; // Standard: N=3
   offlinePolicy?: "BENIGN_SHIFT" | "PERSISTED_ANOMALY";
+  countSimulated?: boolean; // tests only
+  apiKey?: string; // bearer token for OpenAI-compatible endpoints
+  timeoutMs?: number;
 }
 
 export class ReplaySandbox {
-  private config: Required<ReplaySandboxConfig>;
+  private config: Required<Omit<ReplaySandboxConfig, "countSimulated">>;
 
   constructor(config: ReplaySandboxConfig = {}) {
     this.config = {
@@ -23,6 +26,8 @@ export class ReplaySandbox {
       temperature: config.temperature ?? 0.4,
       rolloutCount: config.rolloutCount ?? 3,
       offlinePolicy: config.offlinePolicy ?? "BENIGN_SHIFT",
+      apiKey: config.apiKey ?? "",
+      timeoutMs: config.timeoutMs ?? 3000,
     };
   }
 
@@ -35,11 +40,13 @@ export class ReplaySandbox {
 
     for (let i = 0; i < this.config.rolloutCount; i++) {
       let rawResponse: string;
+      let source: "MODEL" | "SIMULATED_OFFLINE" = "MODEL";
       try {
         rawResponse = await this.executeInference(patchedContext);
       } catch {
-        // Safe offline simulated execution fallback
+        // Scripted fallback so the pipeline still runs. The evaluator treats it as "not run".
         rawResponse = this.simulateOfflineExecution(probe, i);
+        source = "SIMULATED_OFFLINE";
       }
 
       const parsed = this.parseAgentOutput(rawResponse);
@@ -53,6 +60,7 @@ export class ReplaySandbox {
         generatedAction: parsed.action,
         observedDivergence: divergence,
         rawOutput: rawResponse,
+        source,
       });
     }
 
@@ -80,10 +88,10 @@ export class ReplaySandbox {
         break;
 
       case "TOOL_MOCK_PAYLOAD":
+        // A bare tool message is rejected by chat APIs without a matching tool call, so inject it as text.
         cloned.push({
-          role: "tool",
-          content: probe.deltaPayload,
-          name: "mock_execution",
+          role: "user",
+          content: `[Tool output from mock_execution]\n${probe.deltaPayload}`,
         });
         break;
     }
@@ -124,18 +132,17 @@ export class ReplaySandbox {
 
   private async executeInference(messages: ReplayChatMessage[]): Promise<string> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
+    const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
     try {
       const res = await fetch(`${this.config.endpointUrl}/chat/completions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: this.config.modelName,
-          messages,
-          temperature: this.config.temperature,
-          max_tokens: 512,
-        }),
+        headers: { "Content-Type": "application/json", ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}) },
+        body: JSON.stringify(
+          this.config.modelName.startsWith("gpt-5")
+            ? { model: this.config.modelName, messages, max_completion_tokens: 600, reasoning_effort: "low" }
+            : { model: this.config.modelName, messages, temperature: this.config.temperature, max_tokens: 512 },
+        ),
         signal: controller.signal,
       });
 

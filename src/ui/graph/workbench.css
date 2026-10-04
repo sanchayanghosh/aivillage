@@ -30,3 +30,11 @@
 .wb .modal .row2{display:flex;gap:10px;align-items:center;margin-top:8px}.wb .modal .row2 input[type=text],.wb .modal .row2 input:not([type]){flex:1;border:1px solid var(--line);border-radius:4px;padding:5px 8px}
 .wb .modal footer{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}.wb .modal footer .btn.primary{width:auto;margin:0}
 .wb .modal .err{color:var(--bad)}.wb .ingest{margin-top:10px;font-size:12px}.wb .warnline{margin:5px 0;padding:5px 9px;background:#fcf0d0;border-left:3px solid var(--warn);color:#6b4b00;border-radius:3px}
+
+.wb a.brand{color:#fff;text-decoration:none}
+.wb .empty-canvas{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;background:rgba(255,255,255,.55)}
+.wb .ec-card{pointer-events:auto;max-width:520px;background:#fff;border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:6px;padding:22px 26px;box-shadow:0 10px 40px rgba(15,43,70,.14)}
+.wb .ec-kicker{font:600 10px var(--mono);text-transform:uppercase;letter-spacing:1px;color:var(--dim)}
+.wb .ec-card h2{margin:6px 0 8px;font-size:21px;line-height:1.25;color:var(--navy)}.wb .ec-card p{margin:0 0 14px;color:#38475a}
+.wb .ec-actions{display:flex;gap:8px}.wb .ec-actions .btn.primary{width:auto;margin:0}
+.wb .ec-fix{margin-top:12px;font-size:12px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;align-items:center}.wb .link{border:0;background:none;color:var(--blue);text-decoration:underline;font:12px var(--mono);padding:0}

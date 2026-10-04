@@ -27,7 +27,7 @@ export default function AgentDock({ onClose }: { onClose: () => void }) {
     setPhase("starting");
     startAgent({
       onText: appendAgent,
-      onTool: (name, input, result, failed) => push({ who: "tool", text: `${name}(${JSON.stringify(input)}) → ${result}`, failed }),
+      onTool: (name, input, result, failed) => push({ who: "tool", text: `${name}(${JSON.stringify(input).slice(0, 110)}${JSON.stringify(input).length > 110 ? "…" : ""}) → ${result}`, failed }),
     }).then(setPhase).catch((e) => { setPhase("error"); push({ who: "agent", text: `The agent could not start: ${e instanceof Error ? e.message : e}` }); });
   }, [configured]);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [msgs]);

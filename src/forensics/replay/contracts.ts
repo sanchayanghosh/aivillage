@@ -94,6 +94,8 @@ export const RolloutResultSchema = z.object({
   }),
   observedDivergence: RolloutDivergenceSchema,
   rawOutput: z.string(),
+  /** MODEL = a real endpoint answered. SIMULATED_OFFLINE = scripted fallback, carries no evidence. */
+  source: z.enum(["MODEL", "SIMULATED_OFFLINE"]).optional(),
 });
 export type RolloutResult = z.infer<typeof RolloutResultSchema>;
 

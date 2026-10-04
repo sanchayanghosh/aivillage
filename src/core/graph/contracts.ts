@@ -52,3 +52,15 @@ export interface GraphPayload {
   nodes: GNode[];
   edges: GEdge[];
 }
+
+export interface CoverageRow { eventType: string; count: number; role: string }
+/** Payload of POST /api/leads. */
+export interface LeadsPayload {
+  leads: Lead[];
+  judgments: Array<Judgment & { recordText: string }>;
+  questions: Array<{ questionId: string; version: number; text: string; answerType: string }>;
+  coverage: CoverageRow[];
+  model: string;
+  judge: { asked: number; cacheHits: number; parseErrors: number; modelErrors: number };
+  notBuilt: string[];
+}

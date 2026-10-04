@@ -7,6 +7,10 @@ import { runForensics } from "../forensics/runForensics.js";
 import { buildGraph } from "../core/graph/GraphBuilder.js";
 import { llmConfigFromEnv, runLlmTurn } from "./llm/openaiProvider.js";
 import { existsSync } from "node:fs";
+import { SemanticJudge, OpenAIJudgeModel } from "../core/semantic/SemanticJudge.js";
+import { QUESTIONS } from "../core/semantic/questions.js";
+import { findLeads } from "../core/discovery/LeadFinder.js";
+import { parseEpisodeJsonl } from "../core/episodes/EpisodeLoader.js";
 import { normalizeTranscript } from "../core/ingest/TranscriptNormalizer.js";
 
 try {
@@ -50,6 +54,27 @@ createServer(async (req, res) => {
         llm: { configured: Boolean(llm.apiKey), model: llm.model },
         huggingface: { tokenConfigured: Boolean(process.env.HF_TOKEN), datasetPresent: existsSync(join(datasetDir, "events.jsonl.gz")) },
         fixtures: readdirSync(FIXTURE_DIR).filter((f) => f.endsWith(".jsonl") && !f.startsWith("_tmp_")).length,
+      });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/leads") {
+      const llm = llmConfigFromEnv();
+      if (!llm.apiKey) return sendJson(res, 503, { error: "The Semantic Judge needs OPENAI_API_KEY on the server.", code: "NO_LLM_KEY" });
+      const body = JSON.parse(await readBody(req)) as { transcript?: string; fixture?: string };
+      let raw = body.transcript;
+      if (!raw && body.fixture && !body.fixture.includes("/") && !body.fixture.includes("..")) raw = readFileSync(join(FIXTURE_DIR, body.fixture), "utf8");
+      if (!raw) return sendJson(res, 400, { error: "transcript or fixture is required" });
+      const records = parseEpisodeJsonl(normalizeTranscript(raw).jsonl);
+      const judge = new SemanticJudge(new OpenAIJudgeModel(process.env.JUDGE_MODEL ?? llm.model, llm.apiKey, llm.baseUrl), join(FIXTURE_DIR, "../../.cache/semantic-judge.json"));
+      const result = await findLeads(records, judge);
+      const roleOf = new Map<string, string>();
+      const counts = new Map<string, number>();
+      for (const r of records) { counts.set(r.eventType, (counts.get(r.eventType) ?? 0) + 1); roleOf.set(r.eventType, r.role); }
+      return sendJson(res, 200, {
+        leads: result.leads, judgments: result.judgments,
+        questions: Object.values(QUESTIONS), model: process.env.JUDGE_MODEL ?? llm.model, judge: judge.stats,
+        coverage: [...counts].map(([eventType, count]) => ({ eventType, count, role: roleOf.get(eventType)! })),
+        notBuilt: ["Route 5 goal divergence (needs session goals)", "Q_SAME_TASK episode linking", "Hand-labelled evaluation sets (precision and recall)"],
       });
     }
 
@@ -99,7 +124,7 @@ createServer(async (req, res) => {
       const episodeId = body.episodeId ?? "ep-uploaded";
       body.jsonl = normalizeTranscript(body.jsonl).jsonl;
 
-      if (body.usePython) {
+      if (body.usePython && /^real_aivillage/.test(episodeId)) {
         // Run direct Python forensics engine
         const tempFixture = join(FIXTURE_DIR, `_tmp_${Date.now()}.jsonl`);
         const { writeFileSync, unlinkSync } = await import("node:fs");
