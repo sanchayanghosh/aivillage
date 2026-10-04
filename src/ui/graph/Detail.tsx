@@ -2,12 +2,11 @@ import { useState } from "react";
 import type { GNode, GEdge } from "./types";
 import { iconSvg, TYPE_LABEL } from "./icons";
 
-const RELEVANT: Record<string, string[]> = { claim_1: ["obs_1", "obs_2"], claim_2: ["obs_1", "obs_2"], claim_3: [], claim_4: ["obs_q"] };
 const pct = (p: number) => Math.round(p * 100) + "%";
 
 export default function Detail({ onForensics, node, nodes, edges, confirmed, overrides, onConfirm, onOverride, onSelect }: {
   onForensics: () => void; node: GNode | null; nodes: GNode[]; edges: GEdge[]; confirmed: Set<string>; overrides: Record<string, string>;
-  onConfirm: (id: string) => void; onOverride: (id: string, why: string) => void; onSelect: (id: string) => void;
+  onConfirm: (id: string) => void; onOverride: (id: string, v: string, why: string) => void; onSelect: (id: string) => void;
 }) {
   const [why, setWhy] = useState("");
   if (!node) return (
@@ -16,9 +15,10 @@ export default function Detail({ onForensics, node, nodes, edges, confirmed, ove
   const links = edges.filter(e => e.source === node.id || e.target === node.id);
   const other = (e: GEdge) => nodes.find(n => n.id === (e.source === node.id ? e.target : e.source))!;
   const isConf = confirmed.has(node.id);
-  const obsBefore = node.nodeType === "CLAIM" ? nodes.filter(n => (RELEVANT[node.id] ?? []).includes(n.id) && n.time! < node.time!) : [];
-  const later = node.nodeType === "CLAIM" ? nodes.filter(n => n.laterEvidence && node.id !== "claim_4" && (RELEVANT[node.id] ?? []).length > 0) : [];
-  const latest = obsBefore.length ? obsBefore.reduce((a, b) => (a.time! > b.time! ? a : b)) : null;
+  const decisiveEdge = edges.find((e) => e.source === node.id && (e.edgeType === "CONTRADICTED_BY" || e.edgeType === "SUPPORTED_BY"));
+  const obsBefore = node.nodeType === "CLAIM" && node.time ? nodes.filter((n) => n.nodeType === "OBSERVATION" && n.time && n.time <= node.time!) : [];
+  const later = node.nodeType === "CLAIM" ? nodes.filter((n) => n.laterEvidence && (n.time ?? "") > (node.time ?? "")) : [];
+  const latest = (decisiveEdge && nodes.find((n) => n.id === decisiveEdge.target)) || (obsBefore.length ? obsBefore.reduce((a, b) => (a.time! > b.time! ? a : b)) : null);
   const ov = overrides[node.id];
 
   return (
@@ -37,7 +37,7 @@ export default function Detail({ onForensics, node, nodes, edges, confirmed, ove
       )}
       <p className="preview">{node.previewText}</p>
 
-      {node.nodeType === "CLAIM" && node.id !== "claim_4" && (
+      {node.nodeType === "CLAIM" && (
         <section>
           <h4>Verdict rule · latest relevant observation before claim</h4>
           <ol className="timeline">
@@ -86,7 +86,7 @@ export default function Detail({ onForensics, node, nodes, edges, confirmed, ove
             <textarea value={why} onChange={e => setWhy(e.target.value)} rows={2} placeholder="Why does the evidence justify a different verdict?" /></label>
           <div className="row">
             {(["SUPPORTED", "UNRESOLVED", "CONTRADICTED"] as const).filter(v => v !== node.verdict).map(v =>
-              <button key={v} className="btn" disabled={why.trim().length < 10} onClick={() => { onOverride(node.id, v); setWhy(""); }}>→ {v}</button>)}
+              <button key={v} className="btn" disabled={why.trim().length < 10} onClick={() => { onOverride(node.id, v, why); setWhy(""); }}>→ {v}</button>)}
           </div>
         </section>)}
     </div>

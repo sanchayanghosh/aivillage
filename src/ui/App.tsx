@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type {
   GoalSummary,
   LatentRewardStructure,
   TraceNarrative,
   CausalConfirmationReport,
 } from "../core/types/contracts.js";
+import { studio } from "./studio/store";
 import type { LatentRewardReplayReport } from "../forensics/replay/contracts.js";
 
 interface Claim {
@@ -123,24 +124,51 @@ export function App() {
     }
   }
 
-  async function runForensics() {
+  async function execute(content: string, id: string) {
     setRunning(true);
     setError(null);
     try {
       const res = await fetch("/api/forensics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonl, episodeId, usePython }),
+        body: JSON.stringify({ jsonl: content, episodeId: id, usePython: latest.current.usePython }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "forensics failed");
       setReport(body);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      throw e;
     } finally {
       setRunning(false);
     }
   }
+
+  async function runForensics() {
+    await execute(jsonl, episodeId).catch(() => undefined);
+  }
+
+  // Share state with the studio store so the agent sees Step 2, and expose controls to it.
+  const latest = useRef({ jsonl, episodeId, usePython });
+  latest.current = { jsonl, episodeId, usePython };
+  const pending = useRef<string | null>(null);
+  useEffect(() => {
+    studio.patchForensics({ fixtures, episodeId, running, report, error });
+  }, [fixtures, episodeId, running, report, error]);
+  useEffect(() => {
+    studio.registerForensics({
+      loadFixture: async (name) => { pending.current = name; await loadFixture(name); },
+      run: async () => {
+        if (pending.current) {
+          const d = await fetch(`/api/fixtures/${pending.current}`).then((r) => r.json());
+          await execute(d.content, pending.current.replace(/\.jsonl$/, ""));
+        } else {
+          await execute(latest.current.jsonl, latest.current.episodeId);
+        }
+      },
+    });
+    return () => studio.registerForensics(null);
+  }, []);
 
   function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

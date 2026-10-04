@@ -14,7 +14,7 @@ const VC = { SUPPORTED: "#1f9d55", CONTRADICTED: "#d03a2f", UNRESOLVED: "#d99a1d
 
 export interface Handle { cy: Core }
 interface Props {
-  nodes: GNode[]; edges: GEdge[]; selected: string | null; hidden: Set<string>; showSemantic: boolean; showLater: boolean; layout: string; expanded: boolean;
+  nodes: GNode[]; edges: GEdge[]; selected: string | null; hidden: Set<string>; showSemantic: boolean; showLater: boolean; layout: string; expanded: boolean; fitTick: number; zoomTick: { n: number; dir: 1 | -1 | 0 };
   onSelect: (id: string | null) => void; onToggleCluster: () => void; onReady: (cy: Core) => void;
 }
 
@@ -73,10 +73,18 @@ export default function GraphCanvas(p: Props) {
     if (p.selected) cy.getElementById(p.selected).select();
   }, [p.selected]);
 
+  useEffect(() => { cyRef.current?.fit(undefined, 50); }, [p.fitTick]);
   useEffect(() => {
     const cy = cyRef.current!;
+    if (p.zoomTick.dir) cy.zoom({ level: cy.zoom() * (p.zoomTick.dir > 0 ? 1.25 : 0.8), renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+  }, [p.zoomTick.n]);
+
+  useEffect(() => {
+    const cy = cyRef.current!;
+    const allPositioned = p.nodes.every((n) => POS[n.id]);
+    if (p.layout === "preset" && !allPositioned) { cy.layout({ name: "breadthfirst", directed: true, padding: 50, spacingFactor: 1.2, animate: false } as any).run(); cy.fit(undefined, 50); return; }
     if (p.layout === "preset") { cy.nodes().forEach(n => { const q = POS[n.id()]; if (q) n.position({ x: q[0], y: q[1] }); }); cy.fit(undefined, 50); return; }
-    cy.layout({ name: p.layout, animate: true, animationDuration: 500, padding: 50, fit: true, directed: true, spacingFactor: 1.15, nodeDimensionsIncludeLabels: true, roots: ["agent_a"] } as any).run();
+    cy.layout({ name: p.layout, animate: true, animationDuration: 500, padding: 50, fit: true, directed: true, spacingFactor: 1.15, nodeDimensionsIncludeLabels: true, roots: cy.getElementById("agent_a").length ? ["agent_a"] : undefined } as any).run();
   }, [p.layout]);
 
   return <div ref={el} className="canvas" />;

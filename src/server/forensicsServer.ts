@@ -4,6 +4,9 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzeEpisode } from "../core/episodes/EpisodeLoader.js";
 import { runForensics } from "../forensics/runForensics.js";
+import { buildGraph } from "../core/graph/GraphBuilder.js";
+import { llmConfigFromEnv, runLlmTurn } from "./llm/openaiProvider.js";
+import { existsSync } from "node:fs";
 
 try {
   process.loadEnvFile?.();
@@ -31,6 +34,30 @@ function readBody(req: IncomingMessage): Promise<string> {
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+
+    if (req.method === "GET" && url.pathname === "/api/status") {
+      const llm = llmConfigFromEnv();
+      const datasetDir = join(FIXTURE_DIR, "../../dataset");
+      return sendJson(res, 200, {
+        llm: { configured: Boolean(llm.apiKey), model: llm.model },
+        huggingface: { tokenConfigured: Boolean(process.env.HF_TOKEN), datasetPresent: existsSync(join(datasetDir, "events.jsonl.gz")) },
+        fixtures: readdirSync(FIXTURE_DIR).filter((f) => f.endsWith(".jsonl") && !f.startsWith("_tmp_")).length,
+      });
+    }
+
+    if (req.method === "GET" && url.pathname.startsWith("/api/graph/")) {
+      const name = url.pathname.slice("/api/graph/".length);
+      if (name.includes("/") || name.includes("..") || !name.endsWith(".jsonl")) return sendJson(res, 400, { error: "bad name" });
+      const analysis = analyzeEpisode(name.replace(/\.jsonl$/, ""), readFileSync(join(FIXTURE_DIR, name), "utf8"));
+      return sendJson(res, 200, buildGraph(analysis));
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/provider") {
+      const result = await runLlmTurn(await readBody(req));
+      if (!result.ok) return sendJson(res, result.status, { error: result.message, code: result.code });
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+      return void res.end(result.sse);
+    }
 
     if (req.method === "GET" && url.pathname === "/api/fixtures") {
       const fixtures = readdirSync(FIXTURE_DIR).filter((f) => f.endsWith(".jsonl"));

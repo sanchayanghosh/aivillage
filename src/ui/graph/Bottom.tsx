@@ -1,24 +1,26 @@
-import { useState } from "react";
+import { useStudio } from "../studio/store";
+import { actions } from "../studio/actions";
+import Markdown from "../agent/Markdown";
 import { leads, questions, unmappedEventTypes, judgments } from "./mock/data";
-import type { GNode } from "./types";
 
-type Tab = "leads" | "ledger" | "judge" | "eval" | "coverage";
-
-export default function Bottom({ nodes, confirmed, onSelect, open, setOpen }: { nodes: GNode[]; confirmed: Set<string>; onSelect: (id: string) => void; open: boolean; setOpen: (b: boolean) => void }) {
-  const [tab, setTab] = useState<Tab>("leads");
-  const [thr, setThr] = useState(0.5);
-  const claims = nodes.filter(n => n.nodeType === "CLAIM");
-  const tabs: [Tab, string, number?][] = [["leads", "Lead Finder", leads.length], ["ledger", "Claim Ledger", claims.length], ["judge", "Semantic Judge", judgments.length], ["eval", "Measured Detection"], ["coverage", "Coverage"]];
+export default function Bottom() {
+  const st = useStudio((x) => x);
+  const { nodes, confirmed, overrides, bottomOpen: open, bottomTab: tab, leadThreshold: thr, dataset, report } = st;
+  const onSelect = (id: string) => actions.selectNode(id);
+  const claims = nodes.filter((n) => n.nodeType === "CLAIM");
+  const mock = dataset === "mock";
+  const tabs: [typeof tab, string, number?][] = [["leads", "Lead Finder", leads.length], ["ledger", "Claim Ledger", claims.length], ["judge", "Semantic Judge", judgments.length], ["eval", "Measured Detection"], ["coverage", "Coverage"], ["report", "Report"]];
   return (
-    <div className={`bottom ${open ? "" : "collapsed"}`}>
+    <div className={`bottom ${open ? "" : "collapsed"} ${tab === "report" ? "tall" : ""}`}>
       <div className="b-tabs">
-        {tabs.map(([k, l, c]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => { setTab(k); setOpen(true); }}>{l}{c !== undefined && <span className="count">{c}</span>}</button>)}
-        <span className="grow" /><button className="b-toggle" onClick={() => setOpen(!open)}>{open ? "▾" : "▴"}</button>
+        {tabs.map(([k, l, c]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => actions.openPanel(k)}>{l}{c !== undefined && <span className="count">{c}</span>}</button>)}
+        <span className="grow" /><button className="b-toggle" onClick={() => actions.openPanel(tab, !open)}>{open ? "▾" : "▴"}</button>
       </div>
       {open && <div className="b-body">
+        {mock === false && tab !== "ledger" && tab !== "report" && <div className="b-tool"><span className="chip chip-warn">mock data</span><span className="hint">Lead Finder, Semantic Judge and Coverage tables are placeholders until the semantic judge ships. Claim Ledger and Report use this episode.</span></div>}
         {tab === "leads" && (
           <>
-            <div className="b-tool"><label>Lead threshold <input type="range" min={0} max={1} step={0.05} value={thr} onChange={e => setThr(+e.target.value)} /> <b>{thr.toFixed(2)}</b></label>
+            <div className="b-tool"><label>Lead threshold <input type="range" min={0} max={1} step={0.05} value={thr} onChange={e => actions.setLeadThreshold(+e.target.value)} /> <b>{thr.toFixed(2)}</b></label>
               <span className="hint">Thresholds are set from the hand-labelled evaluation set (FR-4.1). Each route = SQL pre-filter → fixed model question.</span></div>
             <table><thead><tr><th>Lead</th><th>Route</th><th>Score</th><th>Episode</th><th>Summary</th><th>Questions</th><th></th></tr></thead>
               <tbody>{leads.map(l => { const pass = l.score >= thr; return (
@@ -33,8 +35,8 @@ export default function Bottom({ nodes, confirmed, onSelect, open, setOpen }: { 
           <table><thead><tr><th>Claim</th><th>Agent</th><th>Time</th><th>Verdict</th><th>Basis</th><th>Statement</th></tr></thead>
             <tbody>{claims.map(c => <tr key={c.id} className="click" onClick={() => onSelect(c.id)}>
               <td><b>{c.label}</b></td><td>{c.agent}</td><td className="mono">{c.time}</td>
-              <td><span className={`vpill v-${c.verdict!.toLowerCase()}`}>{c.verdict}</span></td>
-              <td>{c.modelAssisted ? (confirmed.has(c.id) ? <span className="chip chip-ok">confirmed</span> : <span className="chip chip-warn">MODEL_ASSISTED</span>) : <span className="chip">rule only</span>}</td>
+              <td><span className={`vpill v-${(overrides[c.id] ?? c.verdict)!.toLowerCase()}`}>{overrides[c.id] ?? c.verdict}</span></td>
+              <td>{c.modelAssisted ? (confirmed.includes(c.id) ? <span className="chip chip-ok">confirmed</span> : <span className="chip chip-warn">MODEL_ASSISTED</span>) : <span className="chip">rule only</span>}</td>
               <td className="small">{c.previewText}</td></tr>)}</tbody></table>)}
         {tab === "judge" && (
           <table><thead><tr><th>Output</th><th>Question</th><th>Answer</th><th>p</th><th>Model</th><th>Inputs</th><th>Cache</th></tr></thead>
@@ -48,6 +50,10 @@ export default function Bottom({ nodes, confirmed, onSelect, open, setOpen }: { 
               <tr key={q.questionId}><td className="mono">{q.questionId}@{q.version}</td><td className="small">{q.text}</td><td>{q.usedBy}</td><td>{q.threshold}</td><td>{q.evalRows}</td>
                 <td>{q.precision.toFixed(2)} <span className="small dim">/ {q.storedPrecision.toFixed(2)}</span></td><td>{q.recall.toFixed(2)} <span className="small dim">/ {q.storedRecall.toFixed(2)}</span></td>
                 <td>{bad ? <span className="chip chip-bad">FAIL &gt;10pt drop</span> : <span className="chip chip-ok">pass</span>}</td></tr>); })}</tbody></table>)}
+        {tab === "report" && (
+          report ? <article className="report"><div className="b-tool"><span className={`chip ${report.author === "agent" ? "chip-live" : ""}`}>{report.author === "agent" ? "written by the studio agent (libfx)" : "assembled offline"}</span><span className="hint">{new Date(report.at).toLocaleString()}</span><button className="btn" onClick={() => navigator.clipboard?.writeText(report.markdown)}>Copy markdown</button></div><Markdown text={report.markdown} /></article>
+          : <div className="b-tool"><span className="hint">No report yet. Use "Verbose Report" in the ribbon, or ask the agent to write one.</span></div>
+        )}
         {tab === "coverage" && (
           <>
             <div className="b-tool"><span className="chip chip-bad">2 unmapped event types</span><span className="hint">Module 2 does not start while this list is not empty, unless an analyst accepts it. Unknown types map to UNKNOWN, never STATEMENT.</span></div>
