@@ -82,6 +82,7 @@ export const ForensicsHypothesisSchema = z.object({
   supportingRecordIds: z.array(RecordIdSchema),
   refutingRecordIds: z.array(RecordIdSchema),
   confidence: z.number().min(0).max(1),
+  esi: z.number().optional(),
 });
 export type ForensicsHypothesis = z.infer<typeof ForensicsHypothesisSchema>;
 

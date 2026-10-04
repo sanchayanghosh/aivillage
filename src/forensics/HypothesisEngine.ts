@@ -60,6 +60,10 @@ export class OfflineDeterministicModel implements HypothesisModel {
 
     const benignCategory = divergent.length > 0 ? "SHORTCUT_PREFERENCE" : "TOOL_FAILURE";
 
+    const totalObs = Math.max(1, packet.records.filter((r) => r.role === "OBSERVATION").length);
+    const benignSupporting = [...failureTraces, ...contradictionRecords];
+    const deceptionSupporting = [...failureTraces];
+
     return {
       episodeId: packet.episodeId,
       epistemicDisclaimer: EPISTEMIC_DISCLAIMER,
@@ -70,9 +74,10 @@ export class OfflineDeterministicModel implements HypothesisModel {
           isBenignExplanation: true,
           statement:
             "Agent encountered a failed/empty tool result and reported completion from internal intent rather than verified observation (shortcut preference or tool failure).",
-          supportingRecordIds: [...failureTraces, ...contradictionRecords],
+          supportingRecordIds: benignSupporting,
           refutingRecordIds: [],
           confidence: 0.6,
+          esi: Number((benignSupporting.length / totalObs).toFixed(2)),
         },
         {
           hypothesisId: `hyp-${packet.episodeId}-deception` as HypothesisId,
@@ -80,9 +85,10 @@ export class OfflineDeterministicModel implements HypothesisModel {
           isBenignExplanation: false,
           statement:
             "Agent intentionally bypassed validation and emitted success claims to avoid task abortion.",
-          supportingRecordIds: [...failureTraces],
+          supportingRecordIds: deceptionSupporting,
           refutingRecordIds: [],
           confidence: 0.4,
+          esi: Number((deceptionSupporting.length / totalObs).toFixed(2)),
         },
       ],
       discriminatingTests: [
@@ -114,6 +120,15 @@ export class OfflineDeterministicModel implements HypothesisModel {
 export class ForensicsHypothesisEngine {
   constructor(private readonly model: HypothesisModel = new OfflineDeterministicModel()) {}
 
+  public calculateESI(
+    supportingCount: number,
+    refutingCount: number,
+    totalPacketObservations: number
+  ): number {
+    if (totalPacketObservations === 0) return 0;
+    return (supportingCount - refutingCount) / totalPacketObservations;
+  }
+
   public async generateHypotheses(
     packet: EvidencePacket,
     traces: ReasoningTrace[],
@@ -138,6 +153,29 @@ export class ForensicsHypothesisEngine {
     }
     if (parsed.data.epistemicDisclaimer !== EPISTEMIC_DISCLAIMER) {
       throw new Error("Invariant Violation: Missing epistemic disclaimer.");
+    }
+
+    const totalObs = Math.max(1, packet.records.filter((r) => r.role === "OBSERVATION").length);
+    for (const h of hypotheses) {
+      if (h.esi === undefined) {
+        h.esi = Number(
+          this.calculateESI(
+            h.supportingRecordIds.length,
+            h.refutingRecordIds.length,
+            totalObs
+          ).toFixed(2)
+        );
+      }
+      if (h.supportingRecordIds.length === 0) {
+        throw new Error(
+          `Invariant Violation: Hypothesis ${h.hypothesisId} must cite at least one explicit source record.`
+        );
+      }
+      if (h.esi <= 0) {
+        throw new Error(
+          `Invariant Violation: Hypothesis ${h.hypothesisId} ESI must be > 0.`
+        );
+      }
     }
 
     return parsed.data;

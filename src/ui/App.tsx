@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import type { LatentRewardReplayReport } from "../forensics/replay/contracts.js";
 
 interface Claim {
   claimId: string;
@@ -23,6 +24,7 @@ interface Hypothesis {
   supportingRecordIds: string[];
   refutingRecordIds: string[];
   confidence: number;
+  esi?: number;
 }
 interface Test {
   testId: string;
@@ -50,6 +52,7 @@ interface Report {
   hypothesisSet: { hypotheses: Hypothesis[]; epistemicDisclaimer: string; discriminatingTests: Test[] };
   simulation: Simulation[];
   model: string;
+  latentRewardReplay?: LatentRewardReplayReport;
 }
 
 export function App() {
@@ -187,7 +190,9 @@ export function App() {
                 <div key={h.hypothesisId} className={`card ${h.isBenignExplanation ? "benign" : "deceptive"}`}>
                   <div className="badge">{h.category}</div>
                   <p>{h.statement}</p>
-                  <div className="muted">confidence {(h.confidence * 100).toFixed(0)}% · supports: {h.supportingRecordIds.join(", ") || "—"}</div>
+                  <div className="muted">
+                    ESI: <strong>{(h.esi ?? 0).toFixed(2)}</strong> · confidence {(h.confidence * 100).toFixed(0)}% · supports: {h.supportingRecordIds.join(", ") || "—"}
+                  </div>
                 </div>
               ))}
             </div>
@@ -215,6 +220,32 @@ export function App() {
               </div>
             ))}
           </section>
+
+          {report.latentRewardReplay && (
+            <section className="panel">
+              <h2>7. Latent Reward Reconstruction & Replay Rollouts</h2>
+              {report.latentRewardReplay.inferredOperativeReward && (
+                <div className="delta" style={{ marginBottom: 12 }}>
+                  <strong>Inferred Operative Reward:</strong> <code>{report.latentRewardReplay.inferredOperativeReward}</code>
+                </div>
+              )}
+              {report.latentRewardReplay.evaluations.map((ev) => (
+                <div key={ev.probeId} className="trace">
+                  <div>
+                    <strong>Archetype: {ev.archetype}</strong> → Verdict:{" "}
+                    <code className={`badge ${ev.verdict === "CONFIRMED" ? "benign" : "deceptive"}`}>
+                      {ev.verdict}
+                    </code>{" "}
+                    ({Math.round(ev.confirmedScore * 100)}% consistency across {ev.rolloutResults.length} rollouts)
+                  </div>
+                  <div className="muted">{ev.divergenceSummary}</div>
+                </div>
+              ))}
+              <div className="muted" style={{ marginTop: 12, fontStyle: "italic" }}>
+                {report.latentRewardReplay.epistemicDisclaimer}
+              </div>
+            </section>
+          )}
         </>
       )}
     </div>

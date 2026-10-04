@@ -1,2 +1,12 @@
+node_modules
 node_modules/
 dist/
+.env
+.env.*
+.hf_token
+dataset/
+.cache/
+__pycache__/
+*.pyc
+
+

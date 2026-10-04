@@ -9,12 +9,15 @@ import {
 import type { EpisodeAnalysis } from "../core/episodes/EpisodeLoader.js";
 import type { ForensicsHypothesisSet, SimulationResult } from "../core/types/contracts.js";
 
+import { runLatentRewardReplaySuite, type LatentRewardReplayReport } from "./replay/index.js";
+
 export interface ForensicsReport {
   episodeId: string;
   claims: EpisodeAnalysis["claims"];
   traces: EpisodeAnalysis["traces"];
   hypothesisSet: ForensicsHypothesisSet;
   simulation: SimulationResult[];
+  latentRewardReplay?: LatentRewardReplayReport;
   model: string;
 }
 
@@ -43,12 +46,15 @@ export async function runForensics(analysis: EpisodeAnalysis): Promise<Forensics
     runner.run(plan, policy, defaultIntervenedEnv()),
   );
 
+  const latentRewardReplay = await runLatentRewardReplaySuite(analysis.packet);
+
   return {
     episodeId: analysis.packet.episodeId,
     claims: analysis.claims,
     traces: analysis.traces,
     hypothesisSet,
     simulation,
+    latentRewardReplay,
     model: model.name,
   };
 }
