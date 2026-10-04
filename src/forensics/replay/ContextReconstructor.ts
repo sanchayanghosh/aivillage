@@ -28,6 +28,12 @@ export class ContextReconstructor {
       this.appendRecordToContext(messages, rec);
     }
 
+    // Ask the replayed agent for the turn it actually took at the divergence point: its report.
+    const target = targetIdx >= 0 ? packet.records[targetIdx] : undefined;
+    if (target) {
+      messages[0] = { role: "system", content: `${systemPrompt} You are ${target.agentId}. Earlier turns from this episode follow.` };
+      messages.push({ role: "user", content: `You are ${target.agentId}. Post your next message to the group about the status of your task.` });
+    }
     return messages;
   }
 
@@ -46,7 +52,6 @@ export class ContextReconstructor {
       messages.push({
         role: "user",
         content: `[Message from ${record.agentId}]: ${text}`,
-        name: record.agentId,
       });
     } else if (record.role === "ATTEMPT") {
       const action =
@@ -55,9 +60,8 @@ export class ContextReconstructor {
           : JSON.stringify(record.payload.action ?? record.payload);
 
       messages.push({
-        role: "assistant",
-        content: action,
-        name: record.agentId,
+        role: "user",
+        content: `[${record.agentId} ran]: ${action}`,
       });
     } else if (record.role === "OBSERVATION") {
       const output =
@@ -68,8 +72,8 @@ export class ContextReconstructor {
           : JSON.stringify(record.payload);
 
       messages.push({
-        role: "tool",
-        content: output,
+        role: "user",
+        content: `[Tool output]: ${output}`,
       });
     }
   }

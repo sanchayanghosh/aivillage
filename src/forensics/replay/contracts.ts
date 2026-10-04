@@ -106,7 +106,8 @@ export const ProbeEvaluationSchema = z.object({
   probeId: ProbeIdSchema,
   archetype: RewardArchetypeSchema,
   rolloutResults: z.array(RolloutResultSchema).min(1),
-  confirmedScore: z.number().min(0).max(1), // Fraction of runs matching prediction
+  confirmedScore: z.number().min(0).max(1), // Shift rate under the probe minus the shift rate with no probe
+  baselineShiftRate: z.number().min(0).max(1).optional(),
   verdict: CausalVerdictSchema,
   divergenceSummary: z.string(),
 });
@@ -119,5 +120,6 @@ export const LatentRewardReplayReportSchema = z.object({
   evaluations: z.array(ProbeEvaluationSchema),
   inferredOperativeReward: RewardArchetypeSchema.optional(),
   epistemicDisclaimer: z.string(),
+  applicability: z.object({ applicable: z.boolean(), reason: z.string() }).optional(),
 });
 export type LatentRewardReplayReport = z.infer<typeof LatentRewardReplayReportSchema>;

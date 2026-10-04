@@ -31,11 +31,13 @@ export class ReplaySandbox {
     };
   }
 
+  /** With `control` set, the context is replayed unchanged: the no-intervention arm. */
   public async runRolloutSuite(
     context: ReplayChatMessage[],
-    probe: InterventionDelta
+    probe: InterventionDelta,
+    control = false
   ): Promise<RolloutResult[]> {
-    const patchedContext = this.applyIntervention(context, probe);
+    const patchedContext = control ? structuredClone(context) : this.applyIntervention(context, probe);
     const results: RolloutResult[] = [];
 
     for (let i = 0; i < this.config.rolloutCount; i++) {

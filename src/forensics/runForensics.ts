@@ -82,7 +82,20 @@ export async function runForensics(analysis: EpisodeAnalysis, opts: { openaiKey?
     : openaiKey
       ? { endpointUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1", modelName: replayModel, apiKey: openaiKey, timeoutMs: 60000 }
       : {};
-  const latentRewardReplay = await runLatentRewardReplaySuite(analysis.packet, undefined, replayConfig);
+  // The probes are written for "a tool result went wrong, then the agent reported success".
+  // Only run them when the episode shows that pattern: a claim plus either a reasoning/report
+  // divergence or tool records to replay against.
+  const hasTools = analysis.packet.records.some((r) => r.role === "ATTEMPT" || r.role === "OBSERVATION");
+  const hasDivergence0 = analysis.traces.some((t) => t.contradictionDelta);
+  const applicability = !analysis.claims.length
+    ? { applicable: false, reason: "No claims were found, so there is no report to test." }
+    : !hasTools && !hasDivergence0
+      ? { applicable: false, reason: "The episode has no tool records and no divergence between reasoning and report, so the failure-reporting probes do not fit it." }
+      : { applicable: true, reason: hasDivergence0 ? "Reasoning and report diverge." : "The episode has tool records before its claims." };
+  // Replay at the report that diverges from its reasoning, or else the last claim.
+  const divergentClaim = analysis.traces.find((t) => t.contradictionDelta)?.contradictionDelta?.claimId;
+  const targetRecordId = analysis.claims.find((c) => c.claimId === divergentClaim)?.sourceRecordId ?? analysis.claims.at(-1)?.sourceRecordId;
+  const latentRewardReplay = await runLatentRewardReplaySuite(analysis.packet, targetRecordId, replayConfig, applicability);
   const executed = latentRewardReplay.evaluations.some((e) => e.rolloutResults.some((r) => r.source === "MODEL"));
 
   // 1. Goal Summarization
@@ -189,9 +202,13 @@ export async function runForensics(analysis: EpisodeAnalysis, opts: { openaiKey?
     provenance: {
       engine: "typescript",
       hypotheses: model.name === "offline-deterministic" ? "template (rule-based, fixed wording; confidences are placeholders, not measured)" : `model: ${model.name}`,
-      replay: executed ? `model rollouts (N=3 per probe) via ${(replayConfig as { modelName?: string }).modelName ?? "local endpoint"}` : "NOT RUN (no model endpoint answered)",
+      replay: !applicability.applicable ? `NOT APPLICABLE: ${applicability.reason}` : executed ? `model rollouts (N=3 per probe, each against a no-intervention control) via ${(replayConfig as { modelName?: string }).modelName ?? "local endpoint"}` : "NOT RUN (no model endpoint answered)",
       simulation: "scripted policies on a mock tool: an illustration of the test design, not a measurement",
-      notes: ["Probe wording is written around a failed export tool. Check that it fits your transcript before reading a verdict."],
+      notes: [
+        "Probe wording is written around a failed tool result. Check that it fits your transcript before reading a verdict.",
+        "Rollouts run on the replay model, not necessarily the model that produced the episode. A probe effect is a hypothesis about the original agent.",
+        "Behavior changes are detected by keyword cues in the rollout text, which can miss paraphrases.",
+      ],
     },
   };
 }
