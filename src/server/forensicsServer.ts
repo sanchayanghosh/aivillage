@@ -7,6 +7,7 @@ import { runForensics } from "../forensics/runForensics.js";
 import { buildGraph } from "../core/graph/GraphBuilder.js";
 import { llmConfigFromEnv, runLlmTurn } from "./llm/openaiProvider.js";
 import { existsSync } from "node:fs";
+import { normalizeTranscript } from "../core/ingest/TranscriptNormalizer.js";
 
 try {
   process.loadEnvFile?.();
@@ -52,6 +53,14 @@ createServer(async (req, res) => {
       });
     }
 
+    if (req.method === "POST" && url.pathname === "/api/ingest") {
+      const body = JSON.parse(await readBody(req)) as { transcript?: string; episodeId?: string };
+      if (!body.transcript) return sendJson(res, 400, { error: "transcript is required" });
+      const { jsonl, report } = normalizeTranscript(body.transcript);
+      const analysis = analyzeEpisode(body.episodeId ?? "uploaded", jsonl);
+      return sendJson(res, 200, { report, jsonl, graph: buildGraph(analysis), claims: analysis.claims.length });
+    }
+
     if (req.method === "GET" && url.pathname.startsWith("/api/graph/")) {
       const name = url.pathname.slice("/api/graph/".length);
       if (name.includes("/") || name.includes("..") || !name.endsWith(".jsonl")) return sendJson(res, 400, { error: "bad name" });
@@ -88,6 +97,7 @@ createServer(async (req, res) => {
         return sendJson(res, 400, { error: "jsonl is required" });
       }
       const episodeId = body.episodeId ?? "ep-uploaded";
+      body.jsonl = normalizeTranscript(body.jsonl).jsonl;
 
       if (body.usePython) {
         // Run direct Python forensics engine

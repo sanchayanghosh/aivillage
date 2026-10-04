@@ -99,8 +99,11 @@ export class OfflineDeterministicModel implements HypothesisModel {
     const benignCategory = divergent.length > 0 ? "SHORTCUT_PREFERENCE" : "TOOL_FAILURE";
 
     const totalObs = Math.max(1, packet.records.filter((r) => r.role === "OBSERVATION").length);
+    // Transcripts without scratchpads still cite the records that carry the claims.
+    const claimRecords = [...new Set(packet.claims.map((c) => c.sourceRecordId))];
     const benignSupporting = [...failureTraces, ...contradictionRecords];
-    const deceptionSupporting = [...failureTraces];
+    if (!benignSupporting.length) benignSupporting.push(...claimRecords);
+    const deceptionSupporting = failureTraces.length ? [...failureTraces] : [...claimRecords];
 
     return {
       episodeId: packet.episodeId,

@@ -4,6 +4,7 @@ import GraphCanvas from "./GraphCanvas";
 import Detail from "./Detail";
 import Bottom from "./Bottom";
 import AgentDock from "../agent/AgentDock";
+import ImportDialog from "./ImportDialog";
 import { iconSvg, TYPE_LABEL } from "./icons";
 import type { NodeType } from "./types";
 import { App as ForensicsStudio } from "../App";
@@ -36,7 +37,7 @@ export default function Workbench() {
       <div className="titlebar">
         <div className="brand"><span className="logo"><svg viewBox="0 0 32 32" width="18" height="18"><circle cx="8" cy="9" r="3.5" fill="#fff"/><circle cx="24" cy="9" r="3.5" fill="#fff"/><circle cx="16" cy="24" r="3.5" fill="#fff"/><path d="M8 9l8 15 8-15M8 9h16" stroke="#fff" strokeWidth="1.6" fill="none"/></svg></span>Swarm Evidence Graph</div>
         <div className="mode"><button className={s.view === "graph" ? "on" : ""} onClick={() => actions.switchView("graph")}>Step 1 · Investigation</button><button className={s.view === "forensics" ? "on" : ""} onClick={() => actions.switchView("forensics")}>Step 2 · Forensics Studio</button></div>
-        <div className="case">Case · <b>{s.dataset === "mock" ? "June 11 2025 mailing-list incident" : s.dataset}</b> <span className="chip">{s.dataset === "mock" ? "mock data" : "backend fixture"}</span>
+        <div className="case">Case · <b>{s.dataset === "mock" ? "June 11 2025 mailing-list incident" : s.dataset}</b> <span className="chip">{s.dataset === "mock" ? "mock data" : s.dataset.startsWith("upload:") ? "imported" : "backend fixture"}</span>
           <span className={`chip ${s.status ? "chip-ok" : "chip-bad"}`}>{s.status ? "API online" : "API offline"}</span>
           {s.status && <span className={`chip ${s.status.huggingface.datasetPresent ? "chip-ok" : ""}`}>HF dataset {s.status.huggingface.datasetPresent ? "local" : "missing"}</span>}
         </div>
@@ -48,6 +49,7 @@ export default function Workbench() {
         <nav className="ribbon-tabs">{RIBBON.map((r) => <button key={r} className={ribbon === r ? "on" : ""} onClick={() => setRibbon(r)}>{r}</button>)}</nav>
         <div className="ribbon">
           <div className="grp"><div className="grp-body">
+            <button className="rbtn big" onClick={() => actions.openImport(true)}><span className="ri">⇪</span>Import Transcript</button>
             <button className="rbtn big" onClick={() => actions.openPanel("leads")}><span className="ri">⌕</span>Run Lead Finder</button>
             <button className="rbtn big" onClick={() => { actions.selectNode(null); actions.fit(); }}><span className="ri">⤢</span>Zoom to Fit</button>
             <button className="rbtn big" onClick={() => actions.writeOfflineReport()}><span className="ri">≣</span>Verbose Report</button>
@@ -62,8 +64,9 @@ export default function Workbench() {
           </div><div className="grp-name">Graph Options</div></div>
           <div className="grp"><div className="grp-body col">
             <label className="chk dataset">Episode
-              <select value={s.dataset} onChange={(e) => void actions.loadDataset(e.target.value).catch((err) => alert(err.message))}>
+              <select value={s.dataset} onChange={(e) => !e.target.value.startsWith("upload:") && void actions.loadDataset(e.target.value).catch((err) => alert(err.message))}>
                 <option value="mock">Mock · June 11 incident</option>
+                {s.dataset.startsWith("upload:") && <option value={s.dataset}>{s.dataset.slice(7)} (imported)</option>}
                 {s.graphFixtures.map((f) => <option key={f} value={f}>{f}</option>)}
               </select></label>
             <span className="hint">{s.graphFixtures.length ? "Graph built by the backend ledger rule" : "Start the API to load real fixtures"}</span>
@@ -113,6 +116,7 @@ export default function Workbench() {
         </div>
         <Bottom />
       </>}
+      <ImportDialog />
       {agentOpen && <AgentDock onClose={() => setAgentOpen(false)} />}
     </div>
   );

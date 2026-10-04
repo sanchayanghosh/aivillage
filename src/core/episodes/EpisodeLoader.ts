@@ -47,7 +47,7 @@ export function extractClaims(records: SourceRecord[]): AtomicClaim[] {
 
     if (!text || text.length === 0) continue;
     if (
-      !/(exported|completed|transferred|wrote|signed|verified|generated|sent|live|records|update|working|pushed|solved|confirmed)/i.test(
+      !/(exported|completed|transferred|wrote|signed|verified|generated|sent|live|records|update|working|pushed|solved|confirmed|done|finished|created|deployed|uploaded|fixed|passed|saved|installed|merged|added|published|submitted|resolved|downloaded|ran|built|migrated|removed|deleted|renamed)/i.test(
         text
       )
     ) {

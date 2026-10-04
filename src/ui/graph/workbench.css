@@ -23,3 +23,10 @@
 .wb .dock-input{display:flex;gap:6px;padding:8px 12px 12px}.wb .dock-input input{flex:1;border:1px solid var(--line);border-radius:4px;padding:6px 9px;font:12.5px var(--sans)}
 .wb .report{padding:0 0 18px}.wb .md{max-width:880px;padding:4px 18px;line-height:1.6}.wb .md h2{font-size:16px;color:var(--navy);margin:16px 0 4px;border-bottom:1px solid var(--line);padding-bottom:3px}.wb .md h3{font-size:14px;margin:12px 0 2px}.wb .md h4{font-size:13px}.wb .md p{margin:5px 0}.wb .md blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--warn);background:#fcf6e3;color:#6b4b00}.wb .md code{font:12px var(--mono);background:#edf1f5;padding:0 4px;border-radius:3px}.wb .md ul,.wb .md ol{margin:4px 0;padding-left:22px}
 .wb .bottom.tall{height:56vh}
+.wb .modal-back{position:fixed;inset:0;background:rgba(15,43,70,.45);display:grid;place-items:center;z-index:80}
+.wb .modal{width:min(720px,94vw);max-height:92vh;display:flex;flex-direction:column;background:#fff;border-radius:6px;border-top:3px solid var(--accent);box-shadow:0 20px 60px rgba(15,43,70,.4)}
+.wb .modal header{display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}.wb .modal .x{border:0;background:none;font-size:20px;color:var(--dim)}
+.wb .modal-body{padding:12px 16px;overflow:auto}.wb .modal textarea{width:100%;font:12px var(--mono);border:1px solid var(--line);border-radius:4px;padding:8px;margin-top:8px;background:var(--panel)}
+.wb .modal .row2{display:flex;gap:10px;align-items:center;margin-top:8px}.wb .modal .row2 input[type=text],.wb .modal .row2 input:not([type]){flex:1;border:1px solid var(--line);border-radius:4px;padding:5px 8px}
+.wb .modal footer{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}.wb .modal footer .btn.primary{width:auto;margin:0}
+.wb .modal .err{color:var(--bad)}.wb .ingest{margin-top:10px;font-size:12px}.wb .warnline{margin:5px 0;padding:5px 9px;background:#fcf0d0;border-left:3px solid var(--warn);color:#6b4b00;border-radius:3px}

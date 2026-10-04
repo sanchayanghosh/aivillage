@@ -5,7 +5,7 @@ import type {
   TraceNarrative,
   CausalConfirmationReport,
 } from "../core/types/contracts.js";
-import { studio } from "./studio/store";
+import { studio, useStudio } from "./studio/store";
 import type { LatentRewardReplayReport } from "../forensics/replay/contracts.js";
 
 interface Claim {
@@ -83,6 +83,14 @@ export function App() {
   const [running, setRunning] = useState(false);
   const [usePython, setUsePython] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const imported = useStudio((x) => x.imported);
+  useEffect(() => {
+    if (!imported) return;
+    setJsonl(imported.jsonl);
+    setEpisodeId(imported.name.replace(/\.[^.]+$/, ""));
+    setReport(null);
+    setError(null);
+  }, [imported?.at]);
 
   useEffect(() => {
     fetch("/api/fixtures")

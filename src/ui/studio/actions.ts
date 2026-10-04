@@ -83,6 +83,20 @@ export const actions = {
     await h.loadFixture(name);
   },
 
+  /** Normalize any transcript on the server, then load it into both Step 1 and Step 2. */
+  async importTranscript(name: string, raw: string) {
+    const res = await fetch("/api/ingest", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ transcript: raw, episodeId: name.replace(/\.[^.]+$/, "") }) });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error ?? `Import failed (${res.status})`);
+    const g = body.graph as GraphPayload;
+    studio.set({
+      dataset: `upload:${name}`, nodes: g.nodes, edges: g.edges, selected: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, report: null,
+      imported: { name, jsonl: body.jsonl, report: body.report, at: Date.now() }, fitTick: studio.get().fitTick + 1,
+    }, `imported transcript "${name}" (${body.report.format}, ${body.report.records} records, ${body.claims} claims)`);
+    return body.report as import("./store").IngestReport;
+  },
+  openImport(open: boolean) { studio.set({ importOpen: open }); },
+
   saveReport(markdown: string, author: "agent" | "offline") {
     studio.set({ report: { markdown, author, at: new Date().toISOString() }, bottomTab: "report", bottomOpen: true }, `a ${author} report was written (${markdown.length} chars)`);
   },

@@ -18,6 +18,9 @@ export interface ForensicsState {
   report: unknown | null;
   error: string | null;
 }
+export interface IngestReport {
+  format: string; inputItems: number; records: number; byRole: Record<string, number>; agents: string[]; scratchpads: number; syntheticTimestamps: boolean; warnings: string[];
+}
 export interface ServerStatus {
   llm: { configured: boolean; model: string };
   huggingface: { tokenConfigured: boolean; datasetPresent: boolean };
@@ -47,6 +50,8 @@ export interface StudioState {
   graphFixtures: string[];
   report: { markdown: string; author: "agent" | "offline"; at: string } | null;
   events: string[];
+  imported: { name: string; jsonl: string; report: IngestReport; at: number } | null;
+  importOpen: boolean;
 }
 
 const initial: StudioState = {
@@ -72,6 +77,8 @@ const initial: StudioState = {
   graphFixtures: [],
   report: null,
   events: [],
+  imported: null,
+  importOpen: false,
 };
 
 let state = initial;

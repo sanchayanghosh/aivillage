@@ -104,6 +104,18 @@ Open http://localhost:5173. Without any keys the app runs on the bundled fixture
 
 libfx loads a WebAssembly module that needs JavaScript Promise Integration: Chrome or Edge 137+, or Safari 27. The rest of the studio works in any modern browser.
 
+## Bring your own transcript
+
+Use **Import Transcript** in the ribbon, or paste a transcript into the Forensics Studio. The server detects the format and reports what it found:
+
+- native episode JSONL (passed through unchanged)
+- JSON arrays or JSONL of generic message objects
+- OpenAI chat messages, including `tool_calls`, `role: "tool"` and `reasoning_content`
+- Anthropic content blocks: `text`, `thinking`, `tool_use`, `tool_result`
+- plain text logs such as `[09:03] agent-a: Exported 93 contacts`
+
+Tool outputs become observations, tool calls become attempts, chat becomes statements, and reasoning fields become scratchpads. Claims are then checked against the latest observation before them. The import report lists what could not be read: no observations (so every claim stays unresolved), no reasoning traces (so Step 2 has nothing to compare), a single agent, or missing timestamps (file order is used). The checks are rule-based. They are only as good as the evidence in the transcript, and a transcript with no tool outputs cannot be cross-checked.
+
 ## Using the agent
 
 Open **Agent** in the title bar. Examples:
