@@ -2,6 +2,8 @@ import { useStudio } from "../studio/store";
 import { actions } from "../studio/actions";
 import Markdown from "../agent/Markdown";
 import RealPanels from "./RealPanels";
+import { EpisodesPanel, QueuePanel, EvalPanel, AuditPanel } from "./ResearchPanels";
+import { downloadReportPdf } from "../agent/pdf";
 import { leads, questions, unmappedEventTypes, judgments } from "./mock/data";
 
 export default function Bottom() {
@@ -11,16 +13,20 @@ export default function Bottom() {
   const claims = nodes.filter((n) => n.nodeType === "CLAIM");
   const mock = dataset === "mock";
   const real = !mock;
-  const tabs: [typeof tab, string, number?][] = [["leads", "Lead Finder", mock ? leads.length : st.leads?.leads.length], ["ledger", "Claim Ledger", claims.length], ["judge", "Semantic Judge", mock ? judgments.length : st.leads?.judgments.length], ["eval", "Measured Detection"], ["coverage", "Coverage"], ["report", "Report"]];
+  const tabs: [typeof tab, string, number?][] = [["leads", "Lead Finder", mock ? leads.length : st.leads?.leads.length], ["ledger", "Claim Ledger", claims.length], ["judge", "Semantic Judge", mock ? judgments.length : st.leads?.judgments.length], ["episodes", "Episodes", st.leads?.episodes.length], ["queue", "Queue", st.leads?.queue.shortlist.length], ["eval", "Measured Detection"], ["audit", "Audit"], ["coverage", "Coverage"], ["report", "Report"]];
   return (
-    <div className={`bottom ${open ? "" : "collapsed"} ${tab === "report" ? "tall" : ""}`}>
+    <div className={`bottom ${open ? "" : "collapsed"} ${["report", "eval", "queue", "episodes", "audit"].includes(tab) ? "tall" : ""}`}>
       <div className="b-tabs">
         {tabs.map(([k, l, c]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => actions.openPanel(k)}>{l}{c !== undefined && <span className="count">{c}</span>}</button>)}
         <span className="grow" /><button className="b-toggle" onClick={() => actions.openPanel(tab, !open)}>{open ? "▾" : "▴"}</button>
       </div>
       {open && <div className="b-body">
-        {real && (tab === "leads" || tab === "judge" || tab === "eval" || tab === "coverage") && <RealPanels tab={tab} />}
-        {mock && (tab === "leads" || tab === "judge" || tab === "eval" || tab === "coverage") && <div className="b-tool"><span className="chip chip-warn">sample data</span><span className="hint">These tables belong to the built-in sample. Import your own transcript to run the real Semantic Judge.</span></div>}
+        {real && (tab === "leads" || tab === "judge" || tab === "coverage") && <RealPanels tab={tab} />}
+        {tab === "episodes" && <EpisodesPanel />}
+        {tab === "queue" && <QueuePanel />}
+        {tab === "eval" && <EvalPanel />}
+        {tab === "audit" && <AuditPanel />}
+        {mock && (tab === "leads" || tab === "judge" || tab === "coverage") && <div className="b-tool"><span className="chip chip-warn">sample data</span><span className="hint">These tables belong to the built-in sample. Import your own transcript to run the real Semantic Judge.</span></div>}
         {mock && tab === "leads" && (
           <>
             <div className="b-tool"><label>Lead threshold <input type="range" min={0} max={1} step={0.05} value={thr} onChange={e => actions.setLeadThreshold(+e.target.value)} /> <b>{thr.toFixed(2)}</b></label>
@@ -47,14 +53,14 @@ export default function Bottom() {
               <td><span className="score"><i style={{ width: j.probability * 100 + "%" }} />{j.probability.toFixed(2)}</span></td>
               <td className="mono small">{j.model}</td><td className="mono small">{j.inputRecordIds.join(", ")}</td>
               <td>{j.cached ? <span className="chip chip-cache">hit</span> : <span className="chip chip-live">miss</span>}</td></tr>)}</tbody></table>)}
-        {mock && tab === "eval" && (
+        {false && (
           <table><thead><tr><th>Question</th><th>Question text (descriptive, no motive)</th><th>Used by</th><th>Thr.</th><th>Eval rows</th><th>Precision</th><th>Recall</th><th>Regression</th></tr></thead>
             <tbody>{questions.map(q => { const bad = q.storedPrecision - q.precision > 0.1 || q.storedRecall - q.recall > 0.1; return (
               <tr key={q.questionId}><td className="mono">{q.questionId}@{q.version}</td><td className="small">{q.text}</td><td>{q.usedBy}</td><td>{q.threshold}</td><td>{q.evalRows}</td>
                 <td>{q.precision.toFixed(2)} <span className="small dim">/ {q.storedPrecision.toFixed(2)}</span></td><td>{q.recall.toFixed(2)} <span className="small dim">/ {q.storedRecall.toFixed(2)}</span></td>
                 <td>{bad ? <span className="chip chip-bad">FAIL &gt;10pt drop</span> : <span className="chip chip-ok">pass</span>}</td></tr>); })}</tbody></table>)}
         {tab === "report" && (
-          report ? <article className="report"><div className="b-tool"><span className={`chip ${report.author === "agent" ? "chip-live" : ""}`}>{report.author === "agent" ? "written by the studio agent (libfx)" : "assembled offline"}</span><span className="hint">{new Date(report.at).toLocaleString()}</span><button className="btn" onClick={() => navigator.clipboard?.writeText(report.markdown)}>Copy markdown</button></div><Markdown text={report.markdown} /></article>
+          report ? <article className="report"><div className="b-tool"><span className={`chip ${report.author === "agent" ? "chip-live" : ""}`}>{report.author === "agent" ? "written by the studio agent (libfx)" : "assembled offline"}</span><span className="hint">{new Date(report.at).toLocaleString()}</span><button className="btn" onClick={() => navigator.clipboard?.writeText(report.markdown)}>Copy markdown</button><button className="btn primary" style={{ width: "auto", margin: 0 }} onClick={() => downloadReportPdf(report.markdown, "Forensic report")}>Download PDF</button></div><Markdown text={report.markdown} /></article>
           : <div className="b-tool"><span className="hint">No report yet. Use "Verbose Report" in the ribbon, or ask the agent to write one.</span></div>
         )}
         {mock && tab === "coverage" && (

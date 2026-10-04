@@ -10,7 +10,10 @@ import type { AgentId, RecordId, SessionId } from "../types/brands.js";
  * from light text cues second. Every guess is reported back in `warnings`.
  */
 
-export type DetectedFormat = "native" | "openai-chat" | "anthropic-blocks" | "generic-json" | "text-log";
+export type DetectedFormat = "native" | "openai-chat" | "anthropic-blocks" | "generic-json" | "text-log" | "swarmtraces-payloads" | "collusion-wiki-events" | "urlquery-csv";
+
+/** Large public datasets are sampled so the browser stays usable. */
+export const ROW_CAP = 3000;
 
 export interface NormalizeReport {
   format: DetectedFormat;
@@ -82,7 +85,7 @@ function roleFromFields(o: Obj): RecordRole | null {
   return null;
 }
 
-interface Draft { agent: string; session: string; time?: string; role: RecordRole; eventType: string; payload: Obj }
+interface Draft { agent: string; session: string; time?: string; role: RecordRole; eventType: string; payload: Obj; recordId?: string }
 
 function fromBlocks(o: Obj, base: Omit<Draft, "role" | "eventType" | "payload">, out: Draft[]) {
   const blocks = o.content as Obj[];
@@ -103,7 +106,47 @@ function fromBlocks(o: Obj, base: Omit<Draft, "role" | "eventType" | "payload">,
   out.push(...local);
 }
 
+/** Adapters for public swarm datasets that are activity logs, not chat transcripts. */
+function fromPublicDataset(o: Obj, out: Draft[]): boolean {
+  // SwarmTraces (swarmtraces.org): reassembled attack payloads, linked by parent_id.
+  if (o.kind === "payload" && typeof o.cite === "string" && typeof o.text === "string") {
+    out.push({ recordId: String(o.id), agent: "swarm-agent", session: "swarmtraces", time: iso(o.time_utc), role: "ATTEMPT", eventType: "payload", payload: { command: o.text.slice(0, 1200), ...(o.parent_id ? { parent_id: String(o.parent_id) } : {}), cite: o.cite, tags: o.tags } });
+    return true;
+  }
+  // collusion.wiki explorer events: saves, deletions, reverts and probes.
+  if (typeof o.event_id === "string" && ["save", "delete", "revert", "probe"].includes(String(o.event_type))) {
+    const where = o.page ?? o.request_action ?? "";
+    const agent = String(o.wiki ?? "wiki-agent");
+    out.push({ recordId: o.event_id, agent, session: String(o.wiki ?? "collusion"), time: iso(o.time), role: "ATTEMPT", eventType: String(o.event_type), payload: { command: `${o.event_type} ${where} ${o.param_family ?? ""}`.trim(), ...(o.related_event_id ? { parent_id: String(o.related_event_id) } : {}) } });
+    if (o.event_type === "probe" && typeof o.success_observed === "boolean") {
+      out.push({ agent, session: String(o.wiki ?? "collusion"), time: iso(o.time), role: "OBSERVATION", eventType: "probe_result", payload: { stdout: o.success_observed ? "probe succeeded" : "probe did not succeed (no success observed)", parent_id: o.event_id, ...(o.success_observed ? {} : { exit_code: 1 }) } });
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Minimal CSV reader (quoted fields, doubled quotes). Stops after ROW_CAP rows. */
+function parseCsv(raw: string): Array<Record<string, string>> {
+  const rows: string[][] = [];
+  let cur: string[] = [];
+  let f = "";
+  let q = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (q) { if (c === '"') { if (raw[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { cur.push(f); f = ""; }
+    else if (c === "\n") { cur.push(f); rows.push(cur); cur = []; f = ""; if (rows.length > ROW_CAP) break; }
+    else if (c !== "\r") f += c;
+  }
+  if (f || cur.length) { cur.push(f); rows.push(cur); }
+  const [head, ...body] = rows;
+  return body.map((r) => Object.fromEntries(head.map((h, i) => [h.trim(), r[i] ?? ""])));
+}
+
 function fromObject(o: Obj, idx: number, out: Draft[], state: { lastAgent: string }) {
+  if (fromPublicDataset(o, out)) return;
   const agent = str(first(o, AGENT_KEYS)) || str(o.role) || state.lastAgent || "agent";
   if (agent) state.lastAgent = agent;
   const base = { agent, session: str(first(o, SESSION_KEYS)) || "session-1", time: iso(first(o, TIME_KEYS)) };
@@ -156,6 +199,20 @@ function fromTextLines(lines: string[], out: Draft[]) {
 
 export function normalizeTranscript(raw: string): NormalizeResult {
   const warnings: string[] = [];
+  // Transluce urlquery agent-activity CSV: one scanner report per row.
+  if (/^report_id,report_url,/m.test(raw.slice(0, 400))) {
+    const rows = parseCsv(raw).filter((r) => r.report_id);
+    if (rows.length >= ROW_CAP) warnings.push(`Only the first ${ROW_CAP} reports were read.`);
+    warnings.push("urlquery reports are scanner activity, not agent transcripts. Each row becomes an attempt, with the dataset's own disposition and confidence as its recorded observation. There are no agent claims to check.");
+    const csvDrafts: Draft[] = [];
+    for (const r of rows.slice(0, ROW_CAP)) {
+      const agent = r.broad_class || "urlquery";
+      csvDrafts.push({ recordId: r.report_id, agent, session: "urlquery", time: iso(r.report_date_utc), role: "ATTEMPT", eventType: "scan_report", payload: { command: `${r.report_url} ${r.why_included}`.slice(0, 600), tool_name: "urlquery" } });
+      csvDrafts.push({ agent, session: "urlquery", time: iso(r.report_date_utc), role: "OBSERVATION", eventType: "dataset_label", payload: { stdout: `disposition=${r.disposition} confidence=${r.confidence || "none"}. ${r.caveat}`.slice(0, 600), parent_id: r.report_id } });
+    }
+    if (!csvDrafts.length) throw new Error("No rows could be read from this CSV.");
+    return buildFromDrafts(csvDrafts, "urlquery-csv", rows.length, warnings);
+  }
   const { items, textMode } = parseItems(raw);
 
   // Native episode JSONL: pass through untouched.
@@ -177,7 +234,16 @@ export function normalizeTranscript(raw: string): NormalizeResult {
       : objs.some((o) => Array.isArray(o.tool_calls) || o.role === "tool") ? "openai-chat" : "generic-json";
   }
   if (!drafts.length) throw new Error("No messages could be read from this transcript.");
+  const adapter = drafts.find((d) => d.recordId && ["payload", "save", "delete", "revert", "probe"].includes(d.eventType));
+  if (adapter) {
+    format = adapter.eventType === "payload" ? "swarmtraces-payloads" : "collusion-wiki-events";
+    warnings.push(format === "swarmtraces-payloads" ? "SwarmTraces holds attack payloads, not agent messages. Each payload becomes an attempt linked to its parent. There are no claims or tool results to cross-check, so verdicts will not apply." : "collusion.wiki events are edits, deletions and probes. Probes carry a recorded success flag, which becomes an observation. There are no agent claims to check.");
+  }
+  if (items.length > ROW_CAP) warnings.push(`This file has ${items.length} rows. Only the first ${ROW_CAP} were read.`);
+  return buildFromDrafts(drafts.slice(0, ROW_CAP * 2), format, items.length, warnings);
+}
 
+function buildFromDrafts(drafts: Draft[], format: DetectedFormat, inputItems: number, warnings: string[]): NormalizeResult {
   // Timestamps: keep real ones, fill gaps in order.
   const synthetic = drafts.some((d) => !d.time);
   if (synthetic) warnings.push("Some or all records had no timestamp. Order in the file was used and timestamps were synthesized one second apart, so time-based verdict rules reflect file order only.");
@@ -189,11 +255,11 @@ export function normalizeTranscript(raw: string): NormalizeResult {
     if (t <= last) t = last + 1; // keep strictly increasing in file order
     last = t;
     return {
-      recordId: `rec-${String(i + 1).padStart(4, "0")}` as RecordId, sessionId: d.session as SessionId, agentId: d.agent as AgentId,
+      recordId: (d.recordId ?? `rec-${String(i + 1).padStart(4, "0")}`) as RecordId, sessionId: d.session as SessionId, agentId: d.agent as AgentId,
       timestamp: new Date(t).toISOString(), role: d.role, eventType: d.eventType, payload: d.payload,
     };
   });
-  return finish(records, format, items.length, warnings, synthetic);
+  return finish(records, format, inputItems, warnings, synthetic);
 }
 
 function finish(records: SourceRecord[], format: DetectedFormat, inputItems: number, warnings: string[], synthetic: boolean): NormalizeResult {

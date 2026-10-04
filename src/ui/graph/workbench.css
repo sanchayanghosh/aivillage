@@ -38,3 +38,10 @@
 .wb .ec-card h2{margin:6px 0 8px;font-size:21px;line-height:1.25;color:var(--navy)}.wb .ec-card p{margin:0 0 14px;color:#38475a}
 .wb .ec-actions{display:flex;gap:8px}.wb .ec-actions .btn.primary{width:auto;margin:0}
 .wb .ec-fix{margin-top:12px;font-size:12px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;align-items:center}.wb .link{border:0;background:none;color:var(--blue);text-decoration:underline;font:12px var(--mono);padding:0}
+.wb .keyrow{display:block;margin:12px 0;font-size:12px;color:var(--dim)}.wb .keyrow input{display:block;width:100%;margin-top:4px;padding:7px 9px;border:1px solid var(--line);border-radius:4px;font:13px var(--mono)}
+.wb .evalgrid{display:grid;grid-template-columns:1.1fr 1fr;gap:18px;padding:10px 14px}.wb .evalp h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--navy)}
+.wb .evalp textarea{width:100%;border:1px solid var(--line);border-radius:4px;padding:6px;font:12px var(--sans)}.wb .row-text{margin:6px 0 10px;padding:10px 12px;border-left:3px solid var(--blue);background:var(--panel);white-space:pre-wrap;font-size:13px;max-height:140px;overflow:auto}
+.wb .evalp .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}.wb .metrics{margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:#fff}.wb .metrics.need_more_labels{border-style:dashed}
+.wb .mrow{display:flex;gap:26px}.wb .mrow b{display:block;font-size:24px;color:var(--navy)}.wb .mrow span{font-size:11px;color:var(--dim)}
+.wb .lablist{max-height:130px;overflow:auto;border:1px solid var(--line);border-radius:4px}.wb .lab{display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px solid #edf0f3}.wb .lab .small{flex:1}
+.wb tr.sel td{background:#e8f1fb}

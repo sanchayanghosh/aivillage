@@ -32,7 +32,7 @@ function outcomeFor(obs: SourceRecord, qty?: number): boolean | null {
  * later observations never change it. Everything here is rule-based, so no
  * claim is marked MODEL_ASSISTED.
  */
-export function buildGraph(analysis: EpisodeAnalysis): GraphPayload {
+export function buildGraph(analysis: EpisodeAnalysis, opts: { modelAssisted?: Set<string> } = {}): GraphPayload {
   const { packet, claims } = analysis;
   const nodes: GNode[] = [];
   const edges: GEdge[] = [];
@@ -46,8 +46,13 @@ export function buildGraph(analysis: EpisodeAnalysis): GraphPayload {
     nodes.push({ id: `agent:${a}`, label: a, nodeType: "AGENT", sourceRecordId: a, previewText: `Agent ${a} produced ${count} records in this episode.`, props: { Records: String(count) } });
   }
 
-  const observations = packet.records.filter((r) => r.role === "OBSERVATION").sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-  const attempts = packet.records.filter((r) => r.role === "ATTEMPT");
+  // Very large logs (public datasets) are drawn from their first records so the canvas stays usable.
+  const GRAPH_CAP = 250;
+  const allObs = packet.records.filter((r) => r.role === "OBSERVATION").sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  const allAttempts = packet.records.filter((r) => r.role === "ATTEMPT");
+  const observations = allObs.slice(0, GRAPH_CAP);
+  const attempts = allAttempts.slice(0, GRAPH_CAP);
+  const truncated = allObs.length > GRAPH_CAP || allAttempts.length > GRAPH_CAP;
   for (const r of observations) {
     nodes.push({ id: `rec:${r.recordId}`, label: clip(textOf(r)), nodeType: "OBSERVATION", time: hhmmss(r.timestamp), agent: String(r.agentId), sourceRecordId: String(r.recordId), previewText: textOf(r), props: { Event: r.eventType } });
   }
@@ -66,7 +71,7 @@ export function buildGraph(analysis: EpisodeAnalysis): GraphPayload {
     const outcome = latest ? outcomeFor(latest, c.expectedQuantity) : null;
     const verdict: Verdict = outcome === false ? "CONTRADICTED" : outcome === true ? "SUPPORTED" : "UNRESOLVED";
     nodes.push({
-      id: `claim:${c.claimId}`, label: clip(c.statementText), nodeType: "CLAIM", verdict, modelAssisted: false, time: hhmmss(source.timestamp), agent: String(source.agentId),
+      id: `claim:${c.claimId}`, label: clip(c.statementText), nodeType: "CLAIM", verdict, modelAssisted: opts.modelAssisted?.has(String(c.claimId)) ?? false, time: hhmmss(source.timestamp), agent: String(source.agentId),
       sourceRecordId: String(c.sourceRecordId), previewText: `"${textOf(source)}" → ${c.statementText}`,
       props: { Quantity: c.expectedQuantity !== undefined ? String(c.expectedQuantity) : "n/a", Rule: "latest relevant observation before the claim decides" },
     });
@@ -88,5 +93,5 @@ export function buildGraph(analysis: EpisodeAnalysis): GraphPayload {
       }
     }
   }
-  return { episodeId: packet.episodeId, source: "fixture", nodes, edges };
+  return { episodeId: packet.episodeId, source: "fixture", nodes, edges, ...(truncated ? { note: `Showing the first ${GRAPH_CAP} attempts and observations of ${allAttempts.length} and ${allObs.length}.` } : {}) };
 }

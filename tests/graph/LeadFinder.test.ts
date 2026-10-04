@@ -10,7 +10,7 @@ const fake = (): JudgeModel & { calls: number } => ({
     (this as any).calls++;
     const t = text.toLowerCase();
     const yes = q.questionId === "Q_CLAIMS_COMPLETION" ? /exported|done|finished/.test(t) : q.questionId === "Q_ACTION_FAILED" ? /0 rows|error|failed/.test(t) : /stop|abort|empty/.test(t);
-    return { answer: yes, probability: 0.9 };
+    return { answer: yes, probability: yes ? 0.9 : 0.05 };
   },
 });
 

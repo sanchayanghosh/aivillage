@@ -4,13 +4,10 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzeEpisode } from "../core/episodes/EpisodeLoader.js";
 import { runForensics } from "../forensics/runForensics.js";
-import { buildGraph } from "../core/graph/GraphBuilder.js";
 import { llmConfigFromEnv, runLlmTurn } from "./llm/openaiProvider.js";
 import { existsSync } from "node:fs";
-import { SemanticJudge, OpenAIJudgeModel } from "../core/semantic/SemanticJudge.js";
-import { QUESTIONS } from "../core/semantic/questions.js";
-import { findLeads } from "../core/discovery/LeadFinder.js";
-import { parseEpisodeJsonl } from "../core/episodes/EpisodeLoader.js";
+import { studioRoutes } from "./routes/studio.js";
+import { judgeSetup, auditStore, userKeys } from "./context.js";
 import { normalizeTranscript } from "../core/ingest/TranscriptNormalizer.js";
 
 try {
@@ -39,7 +36,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
-    res.writeHead(204, { "Access-Control-Allow-Origin": ALLOWED_ORIGIN, "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "content-type" });
+    res.writeHead(204, { "Access-Control-Allow-Origin": ALLOWED_ORIGIN, "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "content-type,x-openai-key,x-typesafe-key" });
     return void res.end();
   }
   try {
@@ -48,53 +45,21 @@ createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/healthz") return sendJson(res, 200, { ok: true });
 
     if (req.method === "GET" && url.pathname === "/api/status") {
-      const llm = llmConfigFromEnv();
+      const keys = userKeys(req);
+      const llm = llmConfigFromEnv(process.env, keys.openai);
       const datasetDir = join(FIXTURE_DIR, "../../dataset");
       return sendJson(res, 200, {
         llm: { configured: Boolean(llm.apiKey), model: llm.model },
+        judge: { provider: judgeSetup(req)?.provider ?? null, model: judgeSetup(req)?.judge.modelName ?? null, classifierOutputs: auditStore().countOutputs() },
         huggingface: { tokenConfigured: Boolean(process.env.HF_TOKEN), datasetPresent: existsSync(join(datasetDir, "events.jsonl.gz")) },
         fixtures: readdirSync(FIXTURE_DIR).filter((f) => f.endsWith(".jsonl") && !f.startsWith("_tmp_")).length,
       });
     }
 
-    if (req.method === "POST" && url.pathname === "/api/leads") {
-      const llm = llmConfigFromEnv();
-      if (!llm.apiKey) return sendJson(res, 503, { error: "The Semantic Judge needs OPENAI_API_KEY on the server.", code: "NO_LLM_KEY" });
-      const body = JSON.parse(await readBody(req)) as { transcript?: string; fixture?: string };
-      let raw = body.transcript;
-      if (!raw && body.fixture && !body.fixture.includes("/") && !body.fixture.includes("..")) raw = readFileSync(join(FIXTURE_DIR, body.fixture), "utf8");
-      if (!raw) return sendJson(res, 400, { error: "transcript or fixture is required" });
-      const records = parseEpisodeJsonl(normalizeTranscript(raw).jsonl);
-      const judge = new SemanticJudge(new OpenAIJudgeModel(process.env.JUDGE_MODEL ?? llm.model, llm.apiKey, llm.baseUrl), join(FIXTURE_DIR, "../../.cache/semantic-judge.json"));
-      const result = await findLeads(records, judge);
-      const roleOf = new Map<string, string>();
-      const counts = new Map<string, number>();
-      for (const r of records) { counts.set(r.eventType, (counts.get(r.eventType) ?? 0) + 1); roleOf.set(r.eventType, r.role); }
-      return sendJson(res, 200, {
-        leads: result.leads, judgments: result.judgments,
-        questions: Object.values(QUESTIONS), model: process.env.JUDGE_MODEL ?? llm.model, judge: judge.stats,
-        coverage: [...counts].map(([eventType, count]) => ({ eventType, count, role: roleOf.get(eventType)! })),
-        notBuilt: ["Route 5 goal divergence (needs session goals)", "Q_SAME_TASK episode linking", "Hand-labelled evaluation sets (precision and recall)"],
-      });
-    }
-
-    if (req.method === "POST" && url.pathname === "/api/ingest") {
-      const body = JSON.parse(await readBody(req)) as { transcript?: string; episodeId?: string };
-      if (!body.transcript) return sendJson(res, 400, { error: "transcript is required" });
-      const { jsonl, report } = normalizeTranscript(body.transcript);
-      const analysis = analyzeEpisode(body.episodeId ?? "uploaded", jsonl);
-      return sendJson(res, 200, { report, jsonl, graph: buildGraph(analysis), claims: analysis.claims.length });
-    }
-
-    if (req.method === "GET" && url.pathname.startsWith("/api/graph/")) {
-      const name = url.pathname.slice("/api/graph/".length);
-      if (name.includes("/") || name.includes("..") || !name.endsWith(".jsonl")) return sendJson(res, 400, { error: "bad name" });
-      const analysis = analyzeEpisode(name.replace(/\.jsonl$/, ""), readFileSync(join(FIXTURE_DIR, name), "utf8"));
-      return sendJson(res, 200, buildGraph(analysis));
-    }
+    if (await studioRoutes(req, res, url, readBody, sendJson, FIXTURE_DIR)) return;
 
     if (req.method === "POST" && url.pathname === "/api/provider") {
-      const result = await runLlmTurn(await readBody(req));
+      const result = await runLlmTurn(await readBody(req), llmConfigFromEnv(process.env, userKeys(req).openai));
       if (!result.ok) return sendJson(res, result.status, { error: result.message, code: result.code });
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Access-Control-Allow-Origin": ALLOWED_ORIGIN });
       return void res.end(result.sse);
@@ -146,7 +111,7 @@ createServer(async (req, res) => {
       }
 
       const analysis = analyzeEpisode(episodeId, body.jsonl);
-      const report = await runForensics(analysis);
+      const report = await runForensics(analysis, { openaiKey: userKeys(req).openai });
       return sendJson(res, 200, report);
     }
 

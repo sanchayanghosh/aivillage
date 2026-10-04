@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { GEdge, GNode, NodeType, LeadsPayload } from "../graph/types";
 
 export type Layout = "preset" | "breadthfirst" | "cose" | "circle" | "grid";
-export type BottomTab = "leads" | "ledger" | "judge" | "eval" | "coverage" | "report";
+export type BottomTab = "leads" | "ledger" | "judge" | "episodes" | "queue" | "eval" | "audit" | "coverage" | "report";
 export type View = "graph" | "forensics";
 
 export interface ForensicsHandlers {
@@ -22,6 +22,7 @@ export interface IngestReport {
 }
 export interface ServerStatus {
   llm: { configured: boolean; model: string };
+  judge: { provider: "jev" | "openai" | null; model: string | null; classifierOutputs: number };
   huggingface: { tokenConfigured: boolean; datasetPresent: boolean };
   fixtures: number;
 }
@@ -54,6 +55,8 @@ export interface StudioState {
   leads: LeadsPayload | null;
   leadsLoading: boolean;
   leadsError: string | null;
+  episodeFilter: string | null;
+  graphNote: string | null;
 }
 
 const initial: StudioState = {
@@ -84,6 +87,8 @@ const initial: StudioState = {
   leads: null,
   leadsLoading: false,
   leadsError: null,
+  episodeFilter: null,
+  graphNote: null,
 };
 
 let state = initial;

@@ -11,7 +11,7 @@ export interface Judgment {
   model: string;
   inputRecordIds: string[];
   inputHash: string;
-  answer: string;
+  answer: string | boolean;
   probability: number;
   cached: boolean;
   createdAt: string;
@@ -38,7 +38,7 @@ export interface GEdge {
 }
 export interface Lead {
   id: string; route: number; routeName: string; score: number; episode: string; summary: string;
-  sql: string; questions: string[]; passed: boolean; control?: boolean;
+  sql: string; questions: string[]; passed: boolean; control?: boolean; recordIds?: string[];
 }
 export interface Question {
   questionId: string; version: number; text: string; answerType: "BOOLEAN" | "CHOICE" | "SCORE";
@@ -51,12 +51,18 @@ export interface GraphPayload {
   source: "fixture" | "mock";
   nodes: GNode[];
   edges: GEdge[];
+  note?: string;
 }
 
 export interface CoverageRow { eventType: string; count: number; role: string }
 /** Payload of POST /api/leads. */
 export interface LeadsPayload {
   leads: Lead[];
+  provider: string;
+  graph?: GraphPayload;
+  claimMode?: string;
+  episodes: import("../episodes/EpisodeBuilder.js").Episode[];
+  queue: import("../ranker/QueueRanker.js").QueueResult;
   judgments: Array<Judgment & { recordText: string }>;
   questions: Array<{ questionId: string; version: number; text: string; answerType: string }>;
   coverage: CoverageRow[];

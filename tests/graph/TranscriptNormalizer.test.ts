@@ -59,3 +59,25 @@ describe("TranscriptNormalizer", () => {
     expect(() => normalizeTranscript("   ")).toThrow();
   });
 });
+
+describe("public dataset adapters", () => {
+  it("reads SwarmTraces payloads linked by parent_id", () => {
+    const raw = [{ id: "R1", cite: "R1:aa", kind: "payload", parent_id: null, time_utc: null, tags: "", text: "fetch('https://x')" }, { id: "R2", cite: "R2:bb", kind: "payload", parent_id: "R1", time_utc: null, tags: "", text: "document.write('hi')" }].map((o) => JSON.stringify(o)).join("\n");
+    const n = normalizeTranscript(raw);
+    expect(n.report.format).toBe("swarmtraces-payloads");
+    expect(n.records.map((r) => r.recordId)).toEqual(["R1", "R2"]);
+    expect(n.records[1].payload.parent_id).toBe("R1");
+  });
+  it("reads collusion.wiki events and turns probe results into observations", () => {
+    const raw = [{ event_id: "probe:1", event_type: "probe", time: "2026-05-17T05:46:45Z", request_action: "browse-bare", success_observed: false, wiki: "dse" }, { event_id: "save:dse~A@1", event_type: "save", time: "2026-05-24T06:02:19Z", page: "A", wiki: "dse" }].map((o) => JSON.stringify(o)).join("\n");
+    const n = normalizeTranscript(raw);
+    expect(n.report.format).toBe("collusion-wiki-events");
+    expect(n.report.byRole.OBSERVATION).toBe(1);
+  });
+  it("reads a urlquery CSV, one attempt and one dataset-label observation per row", () => {
+    const raw = 'report_id,report_url,report_date_utc,timestamp_precision,disposition,confidence,broad_class,why_included,caveat\nabc,https://urlquery.net/report/abc,2026-03-11T12:05:59Z,second,included,significant,source_request,"IHME, health data","Candidate evidence"\n';
+    const n = normalizeTranscript(raw);
+    expect(n.report.format).toBe("urlquery-csv");
+    expect(n.report.byRole).toMatchObject({ ATTEMPT: 1, OBSERVATION: 1 });
+  });
+});

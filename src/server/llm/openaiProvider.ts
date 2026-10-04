@@ -6,9 +6,9 @@ export interface LlmConfig {
   baseUrl: string;
 }
 
-export function llmConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LlmConfig {
+export function llmConfigFromEnv(env: NodeJS.ProcessEnv = process.env, userKey?: string): LlmConfig {
   return {
-    apiKey: env.OPENAI_API_KEY?.trim() || undefined,
+    apiKey: userKey?.trim() || env.OPENAI_API_KEY?.trim() || undefined,
     model: env.OPENAI_MODEL?.trim() || "gpt-5.6-terra",
     baseUrl: (env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1").replace(/\/$/, ""),
   };

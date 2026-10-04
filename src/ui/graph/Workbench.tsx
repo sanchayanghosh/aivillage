@@ -5,6 +5,7 @@ import Detail from "./Detail";
 import Bottom from "./Bottom";
 import AgentDock from "../agent/AgentDock";
 import ImportDialog from "./ImportDialog";
+import SettingsDialog from "./SettingsDialog";
 import { iconSvg, TYPE_LABEL } from "./icons";
 import type { NodeType } from "./types";
 import { App as ForensicsStudio } from "../App";
@@ -22,10 +23,15 @@ export default function Workbench() {
   const [q, setQ] = useState("");
   const [ribbon, setRibbon] = useState("Investigate");
   const [agentOpen, setAgentOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => { void actions.refreshServer(); }, []);
 
-  const hiddenIds = useMemo(() => new Set(s.nodes.filter((n) => s.hiddenTypes.includes(n.nodeType)).map((n) => n.id)), [s.nodes, s.hiddenTypes]);
+  const hiddenIds = useMemo(() => {
+    const ep = s.leads?.episodes.find((e) => e.episodeId === s.episodeFilter);
+    const inEp = ep ? new Set(ep.recordIds) : null;
+    return new Set(s.nodes.filter((n) => s.hiddenTypes.includes(n.nodeType) || (inEp && n.nodeType !== "AGENT" && !inEp.has(n.sourceRecordId))).map((n) => n.id));
+  }, [s.nodes, s.hiddenTypes, s.episodeFilter, s.leads]);
   const sel = s.nodes.find((n) => n.id === s.selected) ?? null;
   const counts = (t: NodeType) => s.nodes.filter((n) => n.nodeType === t).length;
   const stats = { sup: s.nodes.filter((n) => (s.overrides[n.id] ?? n.verdict) === "SUPPORTED").length, con: s.nodes.filter((n) => (s.overrides[n.id] ?? n.verdict) === "CONTRADICTED").length, unr: s.nodes.filter((n) => (s.overrides[n.id] ?? n.verdict) === "UNRESOLVED").length };
@@ -41,6 +47,7 @@ export default function Workbench() {
           <span className={`chip ${s.status ? "chip-ok" : "chip-bad"}`}>{s.status ? "API online" : "API offline"}</span>
           {s.status && <span className={`chip ${s.status.huggingface.datasetPresent ? "chip-ok" : ""}`}>HF dataset {s.status.huggingface.datasetPresent ? "local" : "missing"}</span>}
         </div>
+        <button className="agent-btn" onClick={() => setSettingsOpen(true)} title="Use your own API keys">Keys</button>
         <button className={`agent-btn ${agentOpen ? "on" : ""}`} onClick={() => setAgentOpen((v) => !v)}>◆ Agent{llm ? "" : " (offline)"}</button>
         <input className="search" placeholder="Search entities…" value={q} onChange={(e) => search(e.target.value)} />
       </div>
@@ -76,7 +83,7 @@ export default function Workbench() {
             <div className="kpi k-sup"><b>{stats.sup}</b>Supported</div><div className="kpi k-con"><b>{stats.con}</b>Contradicted</div><div className="kpi k-unr"><b>{stats.unr}</b>Unresolved</div>
           </div><div className="grp-name">Claim Verdicts</div></div>
           <div className="grp"><div className="grp-body col model">
-            <div><span className={`dot ${llm ? "" : "off"}`} />Agent · libfx (WASM)</div><code>{s.status?.llm.model ?? "—"}</code><span className="hint">{llm ? "OpenAI key loaded on the server" : "No OPENAI_API_KEY yet"}</span>
+            <div><span className={`dot ${llm ? "" : "off"}`} />Agent · libfx (WASM) · OpenAI</div><code>{s.status?.llm.model ?? "—"}</code><span className="hint">Judge: {s.status?.judge.provider === "jev" ? `Jev (${s.status.judge.model})` : s.status?.judge.provider === "openai" ? "OpenAI fallback (add a Jev key)" : "none"}</span>
           </div><div className="grp-name">Semantic Judge</div></div>
         </div>
 
@@ -119,7 +126,7 @@ export default function Workbench() {
                 </div>
               )}
               <div className="zoom"><button onClick={() => actions.zoom(1)}>+</button><button onClick={() => actions.zoom(-1)}>−</button><button onClick={() => actions.fit()}>⤢</button></div>
-              <div className="statusline">{s.nodes.length} entities · {s.edges.length} links · double-click a cluster to expand</div>
+              <div className="statusline">{s.nodes.length} entities · {s.edges.length} links · {s.graphNote ?? "double-click a cluster to expand"}</div>
             </div>
           </main>
 
@@ -132,6 +139,7 @@ export default function Workbench() {
         <Bottom />
       </>}
       <ImportDialog />
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {agentOpen && <AgentDock onClose={() => setAgentOpen(false)} />}
     </div>
   );

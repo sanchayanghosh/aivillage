@@ -3,7 +3,7 @@ import { actions } from "../studio/actions";
 import { useStudio, type IngestReport } from "../studio/store";
 
 const FORMAT_LABEL: Record<string, string> = {
-  native: "Episode JSONL", "openai-chat": "OpenAI chat messages", "anthropic-blocks": "Anthropic content blocks", "generic-json": "Generic JSON messages", "text-log": "Plain text log",
+  native: "Episode JSONL", "openai-chat": "OpenAI chat messages", "anthropic-blocks": "Anthropic content blocks", "generic-json": "Generic JSON messages", "text-log": "Plain text log", "swarmtraces-payloads": "SwarmTraces payloads", "collusion-wiki-events": "collusion.wiki events", "urlquery-csv": "Transluce urlquery CSV",
 };
 
 export default function ImportDialog() {
@@ -34,7 +34,7 @@ export default function ImportDialog() {
         <div className="modal-body">
           <p className="hint">Any format works: JSONL or JSON exports, OpenAI or Anthropic message logs, or plain text such as <code>agent-a: Exported 93 contacts</code>. The server detects the format and tells you what it could and could not read. Nothing leaves your machine except the optional agent chat.</p>
           <div className="row2">
-            <input ref={file} type="file" accept=".jsonl,.json,.txt,.log,.md,.ndjson" onChange={(e) => void onFile(e.target.files?.[0])} />
+            <input ref={file} type="file" accept=".jsonl,.json,.txt,.log,.md,.ndjson,.csv" onChange={(e) => void onFile(e.target.files?.[0])} />
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Episode name" />
           </div>
           <textarea rows={11} value={text} onChange={(e) => { setText(e.target.value); setReport(null); }} placeholder={'Paste a transcript here, for example:\n[09:01] agent-a: $ python export.py\n[09:01] tool: wrote 0 rows to contacts.csv\n[09:03] agent-a: Exported 93 contacts to contacts.csv'} />

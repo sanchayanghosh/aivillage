@@ -1,3 +1,4 @@
+import { apiFetch } from "../studio/keys";
 import { studio } from "../studio/store";
 import { AGENT_INSTRUCTIONS } from "./instructions";
 import { STUDIO_TOOLS } from "./tools";
@@ -25,7 +26,7 @@ async function modelFetch(input: RequestInfo | URL, init?: RequestInit): Promise
   if (typeof init?.body === "string") body = init.body;
   else if (init?.body instanceof Uint8Array) body = new TextDecoder().decode(init.body);
   else if (init?.body instanceof ArrayBuffer) body = new TextDecoder().decode(new Uint8Array(init.body));
-  return fetch("/api/provider", { method: "POST", headers: { "content-type": "application/json" }, body, signal: init?.signal ?? undefined });
+  return apiFetch("/api/provider", { method: "POST", headers: { "content-type": "application/json" }, body, signal: init?.signal ?? undefined });
 }
 
 let agent: FxAgent | null = null;

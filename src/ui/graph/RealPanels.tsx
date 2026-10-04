@@ -19,7 +19,7 @@ export default function RealPanels({ tab }: { tab: "leads" | "judge" | "eval" | 
   if (tab === "leads") {
     return (<>
       <div className="b-tool"><label>Lead threshold <input type="range" min={0} max={1} step={0.05} value={thr} onChange={(e) => actions.setLeadThreshold(+e.target.value)} /> <b>{thr.toFixed(2)}</b></label>
-        <span className="hint">Model {leads.model} · {leads.judge.asked} questions · {leads.judge.cacheHits} cached · {leads.judge.parseErrors + leads.judge.modelErrors} errors. Threshold is a slider, not tuned: no evaluation set exists yet.</span>
+        <span className="hint">{leads.provider === "jev" ? "Jev" : "OpenAI fallback"} · {leads.model} · {leads.judge.asked} questions · {leads.judge.cacheHits} cached · {leads.judge.parseErrors + leads.judge.modelErrors} errors. Threshold is a slider, not tuned: no evaluation set exists yet.</span>
         <button className="btn" onClick={() => void actions.runLeadFinder()}>Re-run</button></div>
       <table><thead><tr><th>Lead</th><th>Route</th><th>Score</th><th>Summary</th><th>Pre-filter</th><th>Questions</th><th></th></tr></thead>
         <tbody>{leads.leads.map((l) => { const pass = l.score >= thr; return (

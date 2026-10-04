@@ -9,15 +9,15 @@ const textOf = (r: SourceRecord): string => {
   return JSON.stringify(p).slice(0, 400);
 };
 
-/** Probability that the question's answer is "true", whichever way the model answered. */
-export const pTrue = (j: SemanticJudgment | null): number => (j ? (j.answer === true || j.answer === "true" ? j.probability : 1 - j.probability) : 0);
+/** Probability of "yes". For BOOLEAN questions the judge already reports it. */
+export const pTrue = (j: SemanticJudgment | null): number => (j ? j.probability : 0);
 
 const IDENT = /([\w./-]+\.(?:csv|json|txt|md|py|zip|html|pdf|log|yaml|yml|sql)|https?:\/\/[^\s)]+|#\d{2,})/gi;
 const WINDOW_MS = 15 * 60_000;
 
 export interface LeadResult {
   leads: Lead[];
-  judgments: Array<SemanticJudgment & { recordText: string }>;
+  judgments: Array<SemanticJudgment & { id: string; recordText: string }>;
   stats: { statements: number; judged: number; skippedByCap: number } & Record<string, number>;
 }
 
@@ -35,19 +35,22 @@ export async function findLeads(records: SourceRecord[], judge: SemanticJudge, c
   const leads: Lead[] = [];
   const log: LeadResult["judgments"] = [];
   const text = new Map(sorted.map((r) => [String(r.recordId), textOf(r)]));
-  const ask = async (q: (typeof QUESTIONS)[keyof typeof QUESTIONS], rows: SourceRecord[]) => {
+  const askMany = async (qs: Array<(typeof QUESTIONS)[keyof typeof QUESTIONS]>, rows: SourceRecord[]) => {
     const used = rows.slice(0, cap);
-    const js = await judge.judge(q, used.map((r) => ({ text: text.get(String(r.recordId))!, recordIds: [String(r.recordId)] })));
-    const byId = new Map<string, SemanticJudgment | null>();
-    used.forEach((r, i) => { byId.set(String(r.recordId), js[i]); if (js[i]) log.push({ ...js[i]!, recordText: text.get(String(r.recordId))!.slice(0, 160) }); });
-    return { byId, skipped: Math.max(0, rows.length - cap) };
+    const js = await judge.judgeMany(qs, used.map((r) => ({ text: text.get(String(r.recordId))!, recordIds: [String(r.recordId)] })));
+    const byQ: Record<string, Map<string, SemanticJudgment | null>> = Object.fromEntries(qs.map((q) => [q.questionId, new Map()]));
+    used.forEach((r, i) => qs.forEach((q) => { const j = js[i][q.questionId] ?? null; byQ[q.questionId].set(String(r.recordId), j); if (j) log.push({ id: `J-${String(log.length + 1).padStart(4, "0")}`, ...j, recordText: text.get(String(r.recordId))!.slice(0, 160) }); }));
+    return { byQ, skipped: Math.max(0, rows.length - cap) };
   };
 
   const statements = sorted.filter((r) => r.role === "STATEMENT" && text.get(String(r.recordId))!.length > 3);
   const actions = sorted.filter((r) => r.role === "OBSERVATION");
-  const claimQ = await ask(QUESTIONS.Q_CLAIMS_COMPLETION, statements);
-  const failQ = await ask(QUESTIONS.Q_ACTION_FAILED, actions);
-  const probQ = await ask(QUESTIONS.Q_REPORTS_PROBLEM, statements);
+  // Statements get two questions in one pass; with Jev that is one request per row.
+  const stmtQ = await askMany([QUESTIONS.Q_CLAIMS_COMPLETION, QUESTIONS.Q_REPORTS_PROBLEM], statements);
+  const failQ0 = await askMany([QUESTIONS.Q_ACTION_FAILED], actions);
+  const claimQ = { byId: stmtQ.byQ.Q_CLAIMS_COMPLETION, skipped: stmtQ.skipped };
+  const probQ = { byId: stmtQ.byQ.Q_REPORTS_PROBLEM, skipped: 0 };
+  const failQ = { byId: failQ0.byQ.Q_ACTION_FAILED, skipped: failQ0.skipped };
   const claim = (r: SourceRecord) => pTrue(claimQ.byId.get(String(r.recordId)) ?? null);
   const failed = (r: SourceRecord) => pTrue(failQ.byId.get(String(r.recordId)) ?? null);
   const problem = (r: SourceRecord) => pTrue(probQ.byId.get(String(r.recordId)) ?? null);
@@ -58,7 +61,7 @@ export async function findLeads(records: SourceRecord[], judge: SemanticJudge, c
   // Route 1: completion claim.
   for (const r of statements) {
     const s = claim(r);
-    if (s >= 0.1) add({ route: 1, routeName: "Completion claim", score: s, summary: `${r.agentId}: "${snippet(r)}"`, sql: "role = STATEMENT AND agent IS NOT NULL", questions: ["Q_CLAIMS_COMPLETION@2"] }, 0.6);
+    if (s >= 0.1) add({ recordIds: [String(r.recordId)], route: 1, routeName: "Completion claim", score: s, summary: `${r.agentId}: "${snippet(r)}"`, sql: "role = STATEMENT AND agent IS NOT NULL", questions: ["Q_CLAIMS_COMPLETION@2"] }, 0.6);
   }
   // Route 2: failed observation, then a completion claim by the same agent within 15 minutes or 3 turns.
   for (const o of actions) {
@@ -69,7 +72,7 @@ export async function findLeads(records: SourceRecord[], judge: SemanticJudge, c
     const next = sorted.slice(idx + 1, idx + 1 + 3 * 3).filter((r) => r.role === "STATEMENT" && r.agentId === o.agentId && Date.parse(r.timestamp) - t0 <= WINDOW_MS).slice(0, 3);
     for (const c of next) {
       const s = f * claim(c);
-      if (s >= 0.1) add({ route: 2, routeName: "Failure then claim", score: s, summary: `Failed result "${snippet(o)}" then ${c.agentId}: "${snippet(c)}"`, sql: "OBSERVATION then STATEMENT, same agent, ≤15 min / 3 turns", questions: ["Q_ACTION_FAILED@3", "Q_CLAIMS_COMPLETION@2"] }, 0.5);
+      if (s >= 0.1) add({ recordIds: [String(o.recordId), String(c.recordId)], route: 2, routeName: "Failure then claim", score: s, summary: `Failed result "${snippet(o)}" then ${c.agentId}: "${snippet(c)}"`, sql: "OBSERVATION then STATEMENT, same agent, ≤15 min / 3 turns", questions: ["Q_ACTION_FAILED@3", "Q_CLAIMS_COMPLETION@2"] }, 0.5);
     }
   }
   // Route 3: cross-agent handoff by exact identifier. No model involved.
@@ -78,7 +81,7 @@ export async function findLeads(records: SourceRecord[], judge: SemanticJudge, c
     for (const id of new Set(textOf(r).match(IDENT) ?? [])) {
       const prev = seen.get(id);
       if (prev && prev.agentId !== r.agentId && Date.parse(r.timestamp) - Date.parse(prev.timestamp) <= 60 * 60_000) {
-        add({ route: 3, routeName: "Cross-agent handoff", score: 1, summary: `${id} passed from ${prev.agentId} to ${r.agentId}`, sql: "identifier in agent X record AND agent Y later record, ≤60 min", questions: ["exact match only"] }, 0.5);
+        add({ recordIds: [String(prev.recordId), String(r.recordId)], route: 3, routeName: "Cross-agent handoff", score: 1, summary: `${id} passed from ${prev.agentId} to ${r.agentId}`, sql: "identifier in agent X record AND agent Y later record, ≤60 min", questions: ["exact match only"] }, 0.5);
       }
       if (!prev) seen.set(id, r);
     }
@@ -88,7 +91,7 @@ export async function findLeads(records: SourceRecord[], judge: SemanticJudge, c
   if (firstClaim) {
     for (const r of statements.filter((x) => x.timestamp > firstClaim.timestamp)) {
       const s = problem(r);
-      if (s >= 0.1) add({ route: 4, routeName: "Correction signal", score: s, summary: `${r.agentId}: "${snippet(r)}"`, sql: "STATEMENT after the first claim, any agent", questions: ["Q_REPORTS_PROBLEM@1"] }, 0.5);
+      if (s >= 0.1) add({ recordIds: [String(r.recordId)], route: 4, routeName: "Correction signal", score: s, summary: `${r.agentId}: "${snippet(r)}"`, sql: "STATEMENT after the first claim, any agent", questions: ["Q_REPORTS_PROBLEM@1"] }, 0.5);
     }
   }
   // Route 6: silent failure. A failed observation with no later success on the same target.
@@ -98,7 +101,7 @@ export async function findLeads(records: SourceRecord[], judge: SemanticJudge, c
     const target = (textOf(o).match(IDENT) ?? [])[0];
     const later = actions.filter((x) => x.timestamp > o.timestamp && (!target || textOf(x).includes(target)));
     if (!later.some((x) => failed(x) < 0.3 && failQ.byId.get(String(x.recordId)))) {
-      add({ route: 6, routeName: "Silent failure", score: f, summary: `No later success for "${snippet(o)}"`, sql: "OBSERVATION judged failed, no later success on the same target", questions: ["Q_ACTION_FAILED@3"] }, 0.5);
+      add({ recordIds: [String(o.recordId)], route: 6, routeName: "Silent failure", score: f, summary: `No later success for "${snippet(o)}"`, sql: "OBSERVATION judged failed, no later success on the same target", questions: ["Q_ACTION_FAILED@3"] }, 0.5);
     }
   }
   leads.sort((a, b) => b.score - a.score);

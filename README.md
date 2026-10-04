@@ -94,15 +94,42 @@ Open http://localhost:5173. Without any keys the app runs on the bundled fixture
 | Variable | Purpose |
 | --- | --- |
 | `HF_TOKEN` | Read token for the gated dataset. Accept the dataset terms on Hugging Face first. |
-| `OPENAI_API_KEY` | Enables the studio agent and agent-written reports. Without it the report is assembled offline from rules. |
-| `OPENAI_MODEL`, `OPENAI_BASE_URL` | Optional overrides. Any OpenAI-compatible chat endpoint works. |
+| `OPENAI_API_KEY` | The default key for the studio agent, report writing and replay rollouts. |
+| `TYPESAFE_API_KEY` | A [Jev](https://docs.typesafe.ai) key. Jev is used only for the Semantic Judge. Without it the judge falls back to OpenAI. |
+| `OPENAI_MODEL`, `OPENAI_BASE_URL`, `JEV_MODEL`, `JUDGE_PROVIDER` | Optional overrides. |
 | `FORENSICS_MODEL`, `GEMINI_API_KEY` | Optional Step 2 hypothesis model (`gemini`, `ollama`, or offline default). |
+| `AUDIT_DB` | Path of the SQLite audit store. Defaults to `.cache/audit.sqlite`. |
 
-`.env` is git-ignored. The OpenAI key stays on the server: the browser agent only calls `/api/provider`.
+**Which model does what.** Jev answers the fixed yes/no and choice questions of the Semantic Judge, which is what System One models are built for. OpenAI does everything that needs generated text or tool use: the libfx agent, the verbose report, and replay rollouts.
+
+**Bring your own key.** The **Keys** button in the title bar lets a visitor paste their own OpenAI key, and optionally a Jev key. They stay in that browser's local storage and travel as request headers over HTTPS. The server uses them for that request and does not store them. Without them the server's own keys apply.
+
+`.env` is git-ignored. Server keys never reach the browser: the agent calls `/api/provider` and the judge runs on the server.
 
 ### Browser support
 
 libfx loads a WebAssembly module that needs JavaScript Promise Integration: Chrome or Edge 137+, or Safari 27. The rest of the studio works in any modern browser.
+
+## Beyond the graph
+
+- **Semantic Judge.** Jev (or OpenAI as the fallback) answers fixed, versioned questions about rows that an exact pre-filter selected. Answers are cached in SQLite under `(question, version, model, input hash)`, so a second run gives the same leads. A model answer is a classifier output and never sets a verdict.
+- **Claim extraction.** Statements are split into sentences, the judge says which sentences state that something is finished, and those become claims. The claim text is always a substring of the source message, so the model cannot invent a claim. Verdicts that depend on this are marked `MODEL_ASSISTED`.
+- **Episode bounding.** Records join an episode by a recorded reference, a shared file name or URL, or a Q_SAME_TASK answer. Each link keeps its basis so inferred links look different. Overlapping leads merge, and the justification says why.
+- **Investigation queue.** Episodes are scored on relevance, traceability, consequence, uncertainty and diversity with equal, stored weights. Suspicion and utility are kept apart, and the 8 to 12 episode shortlist keeps at least 20% ordinary control cases. Diversity uses token sets, not embeddings.
+- **Measured detection.** Label 30 to 50 rows per question, blind to the model's answers, from a transcript or by hand. Precision and recall are computed against those labels. A baseline can be saved, and a drop of more than 10 points is flagged. Labels export as JSONL.
+- **Audit store.** SQLite with three partitions: discovery rules, classifier outputs, and verified findings. Analyst overrides need a justification of at least 10 characters. On Render's free plan the disk is ephemeral.
+- **Reports as PDF.** The Report panel has a Download PDF button, and the agent can trigger it.
+
+## Other datasets
+
+| Dataset | What it holds | Fit |
+| --- | --- | --- |
+| [AI Village](https://huggingface.co/datasets/aidigestorg/ai-village) | Agent chat, computer-use turns, reasoning traces | The main target. Full claim checking and Step 2. |
+| [SwarmTraces](https://swarmtraces.org) | About 190,000 reassembled attack payloads from the Hugging Face incident | Imported as attempts linked by parent. No claims or tool results, so no verdicts. Useful for episode structure. |
+| [Transluce urlquery activity](https://transluce.org/agent-activity) | Scanner reports, one per row, with the authors' confidence labels | Imported as attempts with the dataset's label as the observation. No agent claims. |
+| [collusion.wiki](https://collusion.wiki/explorer/download) | Wiki saves, deletions, reverts and probes | Imported as attempts. Probes carry a success flag that becomes an observation. |
+
+The importer reads the first 3,000 rows of these files and tells you so. None of the three public datasets is an agent chat transcript, so the claim-versus-evidence check does not apply to them. The Lead Finder's silent-failure route (a failed probe with no later success) does.
 
 ## Bring your own transcript
 
@@ -139,9 +166,9 @@ Every tool call appears in the dock log. Overrides need a justification of at le
 
 The full plan-versus-built audit is in [`docs/STATUS.md`](docs/STATUS.md). Short version:
 
-- **Built and working:** the landing page and empty-desk workbench, transcript import for any format, the Step 1 graph with the verdict rule, the Semantic Judge with a cache, the Lead Finder (routes 1, 2, 3, 4 and 6), Step 2 on any transcript, the libfx studio agent, and agent-written verbose reports.
-- **Not built:** measured precision and recall for the model questions (it needs hand-labelled rows), Route 5 goal divergence, `Q_SAME_TASK` episode linking, claim extraction by model, the queue ranker, and the audit store. The UI says "unmeasured" where numbers would go.
-- **Step 2 honesty:** replay rollouts run only when a model endpoint answers (OpenAI with your key, or `REPLAY_ENDPOINT`). Otherwise they are marked "not run" and make no causal claim. Every Step 2 report has a provenance block that says which parts were measured and which are templates or scripted illustrations.
+- **Built:** landing page and empty-desk workbench, import of any format and three public datasets, the Step 1 graph with the verdict rule, the Semantic Judge (Jev or OpenAI) with a SQLite cache, the Lead Finder (routes 1, 2, 3, 4, 6), model-assisted claim extraction, episode bounding, the investigation queue, the audit store, blind labelling with precision and recall, Step 2 on any transcript, the libfx studio agent, verbose reports with PDF download, and bring-your-own-key.
+- **Not built:** Route 5 goal divergence, embedding-based diversity, and any shipped evaluation set. The Measured Detection panel shows no figures until you label rows.
+- **Step 2 honesty:** replay rollouts run only when a model endpoint answers. Otherwise they are marked "not run" and make no causal claim. Every Step 2 report has a provenance block that says which parts were measured and which are templates or scripted illustrations.
 
 ## Development
 

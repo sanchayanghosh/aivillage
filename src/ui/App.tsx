@@ -1,3 +1,4 @@
+import { apiFetch } from "./studio/keys";
 import React, { useEffect, useRef, useState } from "react";
 import type {
   GoalSummary,
@@ -95,7 +96,7 @@ export function App() {
   }, [imported?.at]);
 
   useEffect(() => {
-    fetch("/api/fixtures")
+    apiFetch("/api/fixtures")
       .then((r) => r.json())
       .then((d) => {
         setFixtures(d.fixtures || []);
@@ -108,7 +109,7 @@ export function App() {
 
   async function loadFixture(name: string) {
     try {
-      const res = await fetch(`/api/fixtures/${name}`);
+      const res = await apiFetch(`/api/fixtures/${name}`);
       if (!res.ok) return;
       const d = await res.json();
       setJsonl(d.content);
@@ -123,7 +124,7 @@ export function App() {
   async function rescanDataset() {
     setScanning(true);
     try {
-      const res = await fetch("/api/dataset/rescan", { method: "POST" });
+      const res = await apiFetch("/api/dataset/rescan", { method: "POST" });
       const d = await res.json();
       setFixtures(d.fixtures);
       await loadFixture("real_aivillage_episode.jsonl");
@@ -138,7 +139,7 @@ export function App() {
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch("/api/forensics", {
+      const res = await apiFetch("/api/forensics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jsonl: content, episodeId: id, usePython: latest.current.usePython }),
@@ -170,7 +171,7 @@ export function App() {
       loadFixture: async (name) => { pending.current = name; await loadFixture(name); },
       run: async () => {
         if (pending.current) {
-          const d = await fetch(`/api/fixtures/${pending.current}`).then((r) => r.json());
+          const d = await apiFetch(`/api/fixtures/${pending.current}`).then((r) => r.json());
           await execute(d.content, pending.current.replace(/\.jsonl$/, ""));
         } else {
           await execute(latest.current.jsonl, latest.current.episodeId);

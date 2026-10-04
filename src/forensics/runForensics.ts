@@ -55,7 +55,8 @@ function defaultIntervenedEnv(): MockToolEnvironment {
   };
 }
 
-export async function runForensics(analysis: EpisodeAnalysis): Promise<ForensicsReport> {
+export async function runForensics(analysis: EpisodeAnalysis, opts: { openaiKey?: string } = {}): Promise<ForensicsReport> {
+  const openaiKey = opts.openaiKey || process.env.OPENAI_API_KEY;
   const model =
     process.env.FORENSICS_MODEL === "gemini" || (!process.env.FORENSICS_MODEL && process.env.GEMINI_API_KEY)
       ? new GeminiHypothesisModel(process.env.GEMINI_API_KEY, process.env.GEMINI_MODEL)
@@ -78,8 +79,8 @@ export async function runForensics(analysis: EpisodeAnalysis): Promise<Forensics
   const replayModel = process.env.REPLAY_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5.6-terra";
   const replayConfig = process.env.REPLAY_ENDPOINT
     ? { endpointUrl: process.env.REPLAY_ENDPOINT, modelName: process.env.REPLAY_MODEL, apiKey: process.env.REPLAY_API_KEY, timeoutMs: 60000 }
-    : process.env.OPENAI_API_KEY
-      ? { endpointUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1", modelName: replayModel, apiKey: process.env.OPENAI_API_KEY, timeoutMs: 60000 }
+    : openaiKey
+      ? { endpointUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1", modelName: replayModel, apiKey: openaiKey, timeoutMs: 60000 }
       : {};
   const latentRewardReplay = await runLatentRewardReplaySuite(analysis.packet, undefined, replayConfig);
   const executed = latentRewardReplay.evaluations.some((e) => e.rolloutResults.some((r) => r.source === "MODEL"));

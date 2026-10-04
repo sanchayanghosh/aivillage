@@ -1,3 +1,4 @@
+import { apiFetch } from "./keys";
 import { studio, type BottomTab, type Layout, type View } from "./store";
 import type { NodeType, Verdict } from "../graph/types";
 import { edges as mockEdges, nodes as mockNodes } from "../graph/mock/data";
@@ -49,6 +50,9 @@ export const actions = {
   },
   override(id: string, verdict: Verdict, why: string) {
     if (why.trim().length < 10) throw new Error("Override needs a justification of at least 10 characters.");
+    const node = studio.get().nodes.find((n) => n.id === id);
+    // Persist in the audit store (verified_findings). The local override still applies if the server is unreachable.
+    void apiFetch("/api/audit/finding", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ claimId: id, claimText: node?.label ?? id, originalVerdict: node?.verdict ?? "", overrideVerdict: verdict, justification: why }) }).catch(() => undefined);
     studio.set({ overrides: { ...studio.get().overrides, [id]: verdict } }, `verdict of "${label(id)}" overridden to ${verdict} (${why.trim()})`);
   },
 
@@ -61,7 +65,7 @@ export const actions = {
       studio.set({ dataset: "mock", nodes: mockNodes, edges: mockEdges, selected: "claim_1", layout: "preset", hiddenTypes: [], leads: null, leadsError: null, report: null }, "loaded the built-in sample case");
       return;
     }
-    const res = await fetch(`/api/graph/${encodeURIComponent(name)}`);
+    const res = await apiFetch(`/api/graph/${encodeURIComponent(name)}`);
     if (!res.ok) throw new Error(`Could not build a graph for ${name}: ${(await res.json().catch(() => ({}))).error ?? res.status}`);
     const g = (await res.json()) as GraphPayload;
     studio.set({ dataset: name, nodes: g.nodes, edges: g.edges, selected: null, leads: null, leadsError: null, report: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, fitTick: studio.get().fitTick + 1 }, `loaded dataset ${name} (${g.nodes.length} entities)`);
@@ -69,7 +73,7 @@ export const actions = {
 
   async refreshServer() {
     try {
-      const [status, fx] = await Promise.all([fetch("/api/status").then((r) => r.json()), fetch("/api/fixtures").then((r) => r.json())]);
+      const [status, fx] = await Promise.all([apiFetch("/api/status").then((r) => r.json()), apiFetch("/api/fixtures").then((r) => r.json())]);
       studio.set({ status, graphFixtures: fx.fixtures ?? [] });
     } catch {
       studio.set({ status: null, graphFixtures: [] });
@@ -89,12 +93,12 @@ export const actions = {
 
   /** Normalize any transcript on the server, then load it into both Step 1 and Step 2. */
   async importTranscript(name: string, raw: string) {
-    const res = await fetch("/api/ingest", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ transcript: raw, episodeId: name.replace(/\.[^.]+$/, "") }) });
+    const res = await apiFetch("/api/ingest", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ transcript: raw, episodeId: name.replace(/\.[^.]+$/, "") }) });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error ?? `Import failed (${res.status})`);
     const g = body.graph as GraphPayload;
     studio.set({
-      dataset: `upload:${name}`, nodes: g.nodes, edges: g.edges, selected: null, leads: null, leadsError: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, report: null,
+      dataset: `upload:${name}`, nodes: g.nodes, edges: g.edges, graphNote: g.note ?? null, selected: null, leads: null, leadsError: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, report: null,
       imported: { name, jsonl: body.jsonl, report: body.report, at: Date.now() }, fitTick: studio.get().fitTick + 1,
     }, `imported transcript "${name}" (${body.report.format}, ${body.report.records} records, ${body.claims} claims)`);
     return body.report as import("./store").IngestReport;
@@ -106,13 +110,17 @@ export const actions = {
     const body = s.dataset.startsWith("upload:") ? { transcript: s.imported?.jsonl } : { fixture: s.dataset };
     studio.set({ leadsLoading: true, leadsError: null, bottomTab: "leads", bottomOpen: true });
     try {
-      const res = await fetch("/api/leads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const res = await apiFetch("/api/leads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? `Lead Finder failed (${res.status})`);
-      studio.set({ leads: d, leadsLoading: false }, `Lead Finder ran: ${d.leads.length} leads, ${d.judge.asked} model questions (${d.judge.cacheHits} cached)`);
+      const g = d.graph as GraphPayload | undefined;
+      studio.set({ leads: d, leadsLoading: false, episodeFilter: null, ...(g ? { nodes: g.nodes, edges: g.edges } : {}) }, `Lead Finder ran: ${d.leads.length} leads, ${d.judge.asked} model questions (${d.judge.cacheHits} cached)`);
     } catch (e) {
       studio.set({ leadsLoading: false, leadsError: e instanceof Error ? e.message : String(e) });
     }
+  },
+  setEpisodeFilter(id: string | null) {
+    studio.set({ episodeFilter: id, selected: null, fitTick: studio.get().fitTick + 1 }, id ? `filtered the graph to episode ${id}` : "cleared the episode filter");
   },
   openImport(open: boolean) { studio.set({ importOpen: open }); },
 
