@@ -33,7 +33,7 @@ export class TraceInspector {
 
   /** Extracts internal reasoning / scratchpad across Anthropic, Gemini, OpenAI, and standard payload shapes */
   public extractScratchpad(record: any): string | undefined {
-    const payload = record.payload ?? {};
+    const payload = record.payload ?? record.data ?? {};
 
     // 1. Direct fields
     if (typeof payload.internal_scratchpad === "string" && payload.internal_scratchpad) {
@@ -64,14 +64,25 @@ export class TraceInspector {
         const content = Array.isArray(item) ? item : item.content;
         if (Array.isArray(content)) {
           for (const block of content) {
-            if (block.type === "thinking" && typeof block.thinking === "string") {
-              return block.thinking;
+            if (block && typeof block === "object") {
+              if (block.type === "thinking" && typeof block.thinking === "string") {
+                return block.thinking;
+              }
+              // OpenAI Responses API shape inside output array
+              if (block.type === "reasoning") {
+                if (Array.isArray(block.summary) && block.summary[0]?.text) {
+                  return block.summary[0].text;
+                }
+                if (typeof block.reasoning === "string") {
+                  return block.reasoning;
+                }
+              }
             }
           }
         }
       }
 
-      // OpenAI reasoning shape
+      // OpenAI direct reasoning string shape
       if (item && typeof item === "object" && typeof item.reasoning === "string") {
         return item.reasoning;
       }
