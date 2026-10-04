@@ -32,3 +32,27 @@ body { margin: 0; }
 .wb .forensics-host .disclaimer { background: #fcf0d0; border: 1px solid #e0b84a; border-left: 4px solid var(--warn); color: #6b4b00; padding: 9px 14px; border-radius: 4px; }
 .wb .forensics-host code { background: #edf1f5; padding: 1px 6px; border-radius: 3px; font: 12px var(--mono); }
 @media (max-width: 760px) { .wb .forensics-host .cards { grid-template-columns: 1fr; } }
+
+/* Narrative cards, causal report */
+.wb .forensics-host .narrative-summary { background: #eef4fb; border-left: 4px solid var(--blue); border-radius: 4px; padding: 12px 16px; margin-bottom: 16px; }
+.wb .forensics-host .group-explanations { display: flex; flex-direction: column; gap: 14px; }
+.wb .forensics-host .trace-card { background: #fff; border: 1px solid var(--line); border-radius: 5px; padding: 14px 16px; }
+.wb .forensics-host .trace-card.benign { border-left: 4px solid var(--ok); }
+.wb .forensics-host .trace-card.suspicious { border-left: 4px solid var(--warn); }
+.wb .forensics-host .trace-card.deceptive { border-left: 4px solid var(--bad); }
+.wb .forensics-host .trace-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #edf0f3; padding-bottom: 8px; margin-bottom: 10px; }
+.wb .forensics-host .trace-card-title { font-weight: 700; font-size: 14px; color: var(--navy); }
+.wb .forensics-host .badge.agent-badge { background: #d8e6f6; color: #1d4f87; }
+.wb .forensics-host .badge.suspicious { background: #fbecc2; color: #7a5600; }
+.wb .forensics-host .trace-section { margin-bottom: 10px; }
+.wb .forensics-host .trace-section-label { display: block; font: 700 10px var(--sans); text-transform: uppercase; letter-spacing: .6px; color: var(--dim); margin-bottom: 3px; }
+.wb .forensics-host .trace-section-text { margin: 0; line-height: 1.55; color: var(--ink); }
+.wb .forensics-host .investigator-takeaway { background: #eef4fb; border-radius: 4px; padding: 9px 13px; border-left: 3px solid var(--blue); margin-top: 8px; }
+.wb .forensics-host .scratchpad-toggle-btn { background: transparent; color: var(--blue); border: 1px solid var(--line); padding: 3px 9px; font-size: 11.5px; margin-top: 6px; }
+.wb .forensics-host .scratchpad-toggle-btn:hover:not(:disabled) { background: #eef4fb; }
+.wb .forensics-host .scratchpad-raw { margin-top: 8px; max-height: 220px; overflow-y: auto; font-size: 11px; }
+.wb .forensics-host .causal-report-container { margin-top: 8px; }
+.wb .forensics-host .causal-verdict-banner { background: #f1faf4; border: 1px solid var(--ok); border-left: 5px solid var(--ok); border-radius: 4px; padding: 14px 18px; margin-bottom: 14px; }
+.wb .forensics-host .causal-verdict-banner.pending { background: #fdf6e3; border-color: var(--warn); }
+.wb .forensics-host .recommendations-list { padding-left: 20px; margin: 8px 0; }
+.wb .forensics-host .recommendations-list li { margin-bottom: 7px; line-height: 1.5; }

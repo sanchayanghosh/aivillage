@@ -48,14 +48,47 @@ createServer(async (req, res) => {
       const body = JSON.parse(await readBody(req)) as {
         jsonl: string;
         episodeId?: string;
+        usePython?: boolean;
       };
       if (!body.jsonl || typeof body.jsonl !== "string") {
         return sendJson(res, 400, { error: "jsonl is required" });
       }
       const episodeId = body.episodeId ?? "ep-uploaded";
+
+      if (body.usePython) {
+        // Run direct Python forensics engine
+        const tempFixture = join(FIXTURE_DIR, `_tmp_${Date.now()}.jsonl`);
+        const { writeFileSync, unlinkSync } = await import("node:fs");
+        const { execFile } = await import("node:child_process");
+        const { promisify } = await import("node:util");
+        const execFileAsync = promisify(execFile);
+        try {
+          writeFileSync(tempFixture, body.jsonl, "utf8");
+          const { stdout } = await execFileAsync("python3", [
+            join(dirname(fileURLToPath(import.meta.url)), "../../scripts/aivillage_forensics.py"),
+            "--fixture",
+            tempFixture,
+            "--json",
+          ]);
+          return sendJson(res, 200, JSON.parse(stdout));
+        } finally {
+          try { unlinkSync(tempFixture); } catch {}
+        }
+      }
+
       const analysis = analyzeEpisode(episodeId, body.jsonl);
       const report = await runForensics(analysis);
       return sendJson(res, 200, report);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/dataset/rescan") {
+      const { execFile } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execFileAsync = promisify(execFile);
+      const scriptPath = join(dirname(fileURLToPath(import.meta.url)), "../../scripts/interpret_aivillage_dataset.py");
+      const { stdout } = await execFileAsync("python3", [scriptPath]);
+      const fixtures = readdirSync(FIXTURE_DIR).filter((f) => f.endsWith(".jsonl") && !f.startsWith("_tmp_"));
+      return sendJson(res, 200, { message: "Rescan complete", output: stdout, fixtures });
     }
 
     sendJson(res, 404, { error: "not found" });
