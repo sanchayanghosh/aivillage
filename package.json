@@ -12,6 +12,7 @@
     "dev": "node scripts/dev.mjs"
   },
   "dependencies": {
+    "cytoscape": "^3.34.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "zod": "^3.23.8"
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
+    "@types/cytoscape": "^3.21.9",
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
