@@ -28,7 +28,7 @@ export class JevJudgeModel implements JudgeModel {
   private build(q: SemanticQuestion) {
     if (q.answerType === "BOOLEAN") return { type: "noul", instructions: q.text };
     const labels = q.labels ?? [];
-    return { type: "choice", instructions: q.text, criteria: Object.fromEntries(labels.map((l) => [l, null])) };
+    return { type: "choice", instructions: q.text, criteria: Object.fromEntries(labels.map((l) => [l, q.labelHelp?.[l] ?? null])) };
   }
 
   private read(q: SemanticQuestion, a: any): { answer: boolean | string; probability: number } {

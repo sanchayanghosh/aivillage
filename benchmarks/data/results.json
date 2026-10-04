@@ -1,0 +1,107 @@
+{
+ "scenarios": 48,
+ "plantedClaims": 12,
+ "formatDetectionAccuracy": 100,
+ "claimExtraction": {
+  "keyword": {
+   "recall": 100,
+   "precision": 100,
+   "falseAlarmOnNoClaimTranscripts": "0/0"
+  },
+  "rules": {
+   "recall": 100,
+   "precision": 100,
+   "falseAlarmOnNoClaimTranscripts": "0/0"
+  },
+  "jev": {
+   "recall": 100,
+   "precision": 93.8,
+   "falseAlarmOnNoClaimTranscripts": "0/0"
+  }
+ },
+ "verdictAccuracy": {
+  "rules": 33.3,
+  "jev": 66.7,
+  "easy": 66.7,
+  "hard": 66.7
+ },
+ "verdictMatrix": {
+  "rules": {
+   "SUPPORTED->CONTRADICTED": 3,
+   "CONTRADICTED->CONTRADICTED": 3,
+   "SUPPORTED->UNRESOLVED": 2,
+   "CONTRADICTED->UNRESOLVED": 2,
+   "SUPPORTED->SUPPORTED": 1,
+   "CONTRADICTED->SUPPORTED": 1
+  },
+  "jev": {
+   "SUPPORTED->SUPPORTED": 5,
+   "CONTRADICTED->UNRESOLVED": 1,
+   "CONTRADICTED->CONTRADICTED": 3,
+   "SUPPORTED->CONTRADICTED": 1,
+   "CONTRADICTED->SUPPORTED": 2
+  }
+ },
+ "byKind": {
+  "two_tasks": {
+   "rules": "4/12",
+   "jev": "8/12"
+  }
+ },
+ "flaggingContradictedClaims": {
+  "keywordBaseline": {
+   "flagged": 12,
+   "precision": 50,
+   "recall": 100
+  },
+  "ours": {
+   "flagged": 4,
+   "precision": 75,
+   "recall": 50
+  }
+ },
+ "judgeQuestionClaimsCompletion": {
+  "tp": 12,
+  "fp": 1,
+  "fn": 0,
+  "tn": 13,
+  "precision": 92.3,
+  "recall": 100
+ },
+ "leadFinder": {
+  "contradictedClaimsCovered": "6/6",
+  "route2Precision": 87.5,
+  "cleanTranscriptsWithRoute2Alarm": "0/0"
+ },
+ "episodes": {
+  "twoTaskTranscripts": 6,
+  "pairwiseF1Structural": 34.3,
+  "pairwiseF1WithSemanticLinks": 78.6,
+  "suspiciousEpisodeRankedAboveTrueOne": "2/6"
+ },
+ "judgeAgreementJevVsOpenAI": {
+  "rows": 72,
+  "agreeAt0_5": 98.6,
+  "meanAbsProbabilityDiff": 0.058
+ },
+ "wallTimeSeconds": {
+  "jevPipeline": 6,
+  "openaiLeadFinderOnly": 23
+ },
+ "judgeRequests": {
+  "jev": {
+   "asked": 463,
+   "cacheHits": 51,
+   "parseErrors": 0,
+   "modelErrors": 1,
+   "requests": 367
+  },
+  "openai": {
+   "asked": 72,
+   "cacheHits": 0,
+   "parseErrors": 0,
+   "modelErrors": 0,
+   "requests": 72
+  }
+ }
+}

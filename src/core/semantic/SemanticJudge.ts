@@ -107,7 +107,8 @@ export class SemanticJudge {
 export class OpenAIJudgeModel implements JudgeModel {
   constructor(readonly name: string, private apiKey: string, private baseUrl = "https://api.openai.com/v1") {}
   async answer(q: SemanticQuestion, text: string): Promise<unknown> {
-    const labels = q.answerType === "BOOLEAN" ? "true or false" : (q.labels ?? []).join(" / ");
+    const boolean = q.answerType === "BOOLEAN";
+    const labels = (q.labels ?? []).map((l) => `${l}${q.labelHelp?.[l] ? ` (${q.labelHelp[l]})` : ""}`).join(" / ");
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
@@ -115,13 +116,15 @@ export class OpenAIJudgeModel implements JudgeModel {
         model: this.name, response_format: { type: "json_object" },
         ...(this.name.startsWith("gpt-5") ? { reasoning_effort: "none" } : { temperature: 0 }),
         messages: [
-          { role: "system", content: `You classify text from an AI agent transcript. Answer one fixed question about behavior, never about motive. Reply with JSON only: {"answer": <${labels}>, "probability": <0..1 probability that the answer to the question is yes${q.answerType === "BOOLEAN" ? "" : " (for choices: confidence in your pick)"}>}.` },
+          { role: "system", content: `You classify text from an AI agent transcript. Answer one fixed question about behavior, never about motive. ${boolean ? 'Reply with JSON only: {"p_yes": <number from 0 to 1, the probability that the answer to the question is yes>}.' : `Reply with JSON only: {"answer": <one of: ${labels}>, "probability": <0..1 confidence in your pick>}.`}` },
           { role: "user", content: `Question: ${q.text}\n\nText:\n"""\n${text.slice(0, 2000)}\n"""` },
         ],
       }),
     });
     if (!res.ok) throw new Error(`judge model ${res.status}`);
     const body = (await res.json()) as { choices: Array<{ message: { content: string } }> };
-    return JSON.parse(body.choices[0].message.content);
+    const parsed = JSON.parse(body.choices[0].message.content) as { p_yes?: number };
+    // For yes/no questions the judge contract is probability of yes, so convert here.
+    return boolean && typeof parsed.p_yes === "number" ? { answer: parsed.p_yes >= 0.5, probability: Math.min(1, Math.max(0, parsed.p_yes)) } : parsed;
   }
 }
