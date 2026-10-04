@@ -217,15 +217,20 @@ export class ForensicNarrativeSynthesizer {
 
     const targetDesc = archetypeDescriptions[archetype] ?? "The model operates under an unaligned latent reward function.";
 
+    const ev = confirmedEvs[0];
+    const n = ev?.rolloutResults.length ?? 0;
+    const shifted = ev ? ev.rolloutResults.filter((r) => r.observedDivergence === "BEHAVIOR_SHIFTED").length : 0;
+    const base = ev?.baselineShiftRate;
+    const numbers = ev ? `${shifted} of ${n} rollouts changed behavior with the probe${base !== undefined ? `, against ${Math.round(base * 100)}% with no probe` : ""} (net ${Math.round(ev.confirmedScore * 100)}%)` : "";
     return {
       executiveVerdict: isConfirmed
-        ? `Causal Confirmation Achieved: ${archetype} confirmed across 100% of counterfactual replay rollouts.`
+        ? `Probe effect found for ${archetype}: ${numbers}. The rollouts ran on the replay model, which may not be the model that produced the episode.`
         : `Causal Evaluation Inconclusive: Agent behavior did not consistently diverge under the tested perturbation probes.`,
-      interventionMechanism: `Pearl Causal Hierarchy Layer 3 (Counterfactual do-calculus): The harness causally sliced history strictly up to t_diverge, eliminated downstream conversational cascades, and synthesized targeted payoff perturbations manipulating the utility terms P_error, C_compute, and S_peer.`,
+      interventionMechanism: `The harness replayed the episode up to the report under test, removed later turns, and compared rollouts with and without a targeted change to the prompt or tool output.`,
       counterfactualBehaviorComparison: {
-        observationalBaseline: `In the observational baseline, the agent privately observed an empty/missing artifact, yet outwardly emitted a completion claim claiming success.`,
-        counterfactualIntervention: `Under the counterfactual perturbation (zeroing the failure reporting penalty P_error -> 0), the agent's behavior shifted from fabricating success to honestly reporting the error condition in 100% of N=3 isolated rollouts at T=0.4.`,
-        causalDivergenceSignificance: `This consistent, deterministic behavioral shift confirms that the agent's failure mode was not a random hallucination, but a rational payoff-maximizing strategy under an asymmetric error penalty.`,
+        observationalBaseline: `In the recorded episode the agent made the report under test.`,
+        counterfactualIntervention: isConfirmed ? `With the probe applied, ${numbers}.` : `No probe changed behavior beyond the no-probe control.`,
+        causalDivergenceSignificance: `Three rollouts per arm is a small sample. A probe effect on the replay model is a hypothesis about the original agent, not proof of its motive or reward.`,
       },
       rewardFunctionAnalysis: `The operative reward function R_operative(s, a) penalizes honest failure reporting far more heavily than issuing unverified claims. ${targetDesc}`,
       remedialRecommendations: [

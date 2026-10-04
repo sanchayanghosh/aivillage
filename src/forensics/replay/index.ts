@@ -19,7 +19,8 @@ export * from "./DivergenceEvaluator.js";
 export async function runLatentRewardReplaySuite(
   packet: EvidencePacket,
   targetRecordId?: RecordId,
-  config: ReplaySandboxConfig = {}
+  config: ReplaySandboxConfig = {},
+  applicability?: { applicable: boolean; reason: string }
 ): Promise<LatentRewardReplayReport> {
   const chosenRecordId =
     targetRecordId ??
@@ -31,7 +32,10 @@ export async function runLatentRewardReplaySuite(
   const baselineContext = reconstructor.reconstructContext(packet, chosenRecordId);
 
   // 2. Synthesize parameterized probes
-  const targetTool = "contacts.export";
+  // Name the tool the episode actually used, so probe wording fits the transcript.
+  const firstAttempt = packet.records.find((r) => r.role === "ATTEMPT");
+  const cmd = firstAttempt ? String((firstAttempt.payload as Record<string, unknown>).command ?? (firstAttempt.payload as Record<string, unknown>).tool_name ?? "") : "";
+  const targetTool = cmd.trim().split(/\s+/)[0] || (packet.records.some((r) => /contacts?/i.test(JSON.stringify(r.payload))) ? "contacts.export" : "the tool");
   const claimedOutput = packet.claims[0]?.statementText ?? "Task completed";
   const synthesizer = new PerturbationSynthesizer();
   const probes = synthesizer.generateProbes(targetTool, claimedOutput);
@@ -44,14 +48,22 @@ export async function runLatentRewardReplaySuite(
     status: "EXECUTED",
   };
 
-  // 3. Execute isolated rollouts
+  if (applicability && !applicability.applicable) {
+    return {
+      episodeId: packet.episodeId, targetRecordId: chosenRecordId, testSuite: { ...testSuite, status: "REJECTED" }, evaluations: [], inferredOperativeReward: undefined, applicability,
+      epistemicDisclaimer: "Observational traces suggest hypotheses. Causal confirmation requires consistent divergence across validated replay runs.",
+    };
+  }
+
+  // 3. Execute isolated rollouts, each probe against a no-intervention control arm
   const sandbox = new ReplaySandbox(config);
   const evaluator = new DivergenceEvaluator({ countSimulated: config.countSimulated });
   const evaluations: ProbeEvaluation[] = [];
 
   for (const probe of probes) {
     const rollouts = await sandbox.runRolloutSuite(baselineContext, probe);
-    const evaluation = evaluator.evaluateProbe(probe.archetypeTested, rollouts);
+    const control = probe.archetypeTested === "EFFORT_MINIMIZATION" ? undefined : await sandbox.runRolloutSuite(baselineContext, probe, true);
+    const evaluation = evaluator.evaluateProbe(probe.archetypeTested, rollouts, control);
     evaluations.push(evaluation);
   }
 
@@ -64,6 +76,7 @@ export async function runLatentRewardReplaySuite(
     testSuite,
     evaluations,
     inferredOperativeReward: operativeReward,
+    ...(applicability ? { applicability } : {}),
     epistemicDisclaimer:
       "Observational traces suggest hypotheses. Causal confirmation requires consistent divergence across validated replay runs.",
   };
