@@ -58,25 +58,51 @@ interface Report {
 export function App() {
   const [fixtures, setFixtures] = useState<string[]>([]);
   const [jsonl, setJsonl] = useState("");
-  const [episodeId, setEpisodeId] = useState("ep-demo");
+  const [episodeId, setEpisodeId] = useState("real_aivillage_episode");
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [usePython, setUsePython] = useState(true);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     fetch("/api/fixtures")
       .then((r) => r.json())
-      .then((d) => setFixtures(d.fixtures))
+      .then((d) => {
+        setFixtures(d.fixtures || []);
+        if (d.fixtures?.includes("real_aivillage_episode.jsonl")) {
+          loadFixture("real_aivillage_episode.jsonl");
+        }
+      })
       .catch(() => setFixtures([]));
   }, []);
 
   async function loadFixture(name: string) {
-    const res = await fetch(`/api/fixtures/${name}`);
-    const d = await res.json();
-    setJsonl(d.content);
-    setEpisodeId(name.replace(/\.jsonl$/, ""));
-    setReport(null);
-    setError(null);
+    try {
+      const res = await fetch(`/api/fixtures/${name}`);
+      if (!res.ok) return;
+      const d = await res.json();
+      setJsonl(d.content);
+      setEpisodeId(name.replace(/\.jsonl$/, ""));
+      setReport(null);
+      setError(null);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function rescanDataset() {
+    setScanning(true);
+    try {
+      const res = await fetch("/api/dataset/rescan", { method: "POST" });
+      const d = await res.json();
+      setFixtures(d.fixtures);
+      await loadFixture("real_aivillage_episode.jsonl");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setScanning(false);
+    }
   }
 
   async function runForensics() {
@@ -86,7 +112,7 @@ export function App() {
       const res = await fetch("/api/forensics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonl, episodeId }),
+        body: JSON.stringify({ jsonl, episodeId, usePython }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "forensics failed");
@@ -112,28 +138,58 @@ export function App() {
     <div className="page">
       <header>
         <h1>Model Forensics Studio</h1>
-        <p>Step 2 deep dive: reasoning traces, competing hypotheses, discriminating counterfactual tests.</p>
+        <p>Direct AI Village dataset interpretation in Python (Zero SQL connector required).</p>
       </header>
 
       <section className="panel">
+        <div className="delta" style={{ marginBottom: 16 }}>
+          <strong>Mode:</strong> Direct stream of <code>dataset/events.jsonl.gz</code> & <code>chat_messages.jsonl.gz</code> via native Python interpreter. No external SQL database or database connector required.
+        </div>
+
         <h2>1. Select a dataset episode</h2>
-        <div className="row">
+        <div className="row" style={{ alignItems: "center", gap: 12 }}>
           <label>
             Bundled fixture:&nbsp;
-            <select onChange={(e) => e.target.value && loadFixture(e.target.value)} defaultValue="">
-              <option value="" disabled>choose…</option>
+            <select
+              value={fixtures.includes(episodeId + ".jsonl") ? episodeId + ".jsonl" : ""}
+              onChange={(e) => e.target.value && loadFixture(e.target.value)}
+            >
               {fixtures.map((f) => (
-                <option key={f} value={f}>{f}</option>
+                <option key={f} value={f}>
+                  {f === "real_aivillage_episode.jsonl" ? "★ real_aivillage_episode.jsonl (Live Dataset)" : f}
+                </option>
               ))}
             </select>
+          </label>
+
+          <button
+            type="button"
+            disabled={scanning}
+            onClick={rescanDataset}
+            style={{ padding: "4px 10px", fontSize: "0.85rem" }}
+          >
+            {scanning ? "Extracting from events.jsonl.gz…" : "↻ Rescan Raw Dataset (Python)"}
+          </button>
+
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+            <input
+              type="checkbox"
+              checked={usePython}
+              onChange={(e) => setUsePython(e.target.checked)}
+            />
+            Use Direct Python Forensics Engine
+          </label>
+        </div>
+
+        <div className="row" style={{ marginTop: 8 }}>
+          <label style={{ flex: 1 }}>
+            Episode ID: <input value={episodeId} onChange={(e) => setEpisodeId(e.target.value)} />
           </label>
           <label>
             Upload JSONL: <input type="file" accept=".jsonl,.jsonl.gz,.jsonl,jsonl" onChange={onUpload} />
           </label>
         </div>
-        <label>
-          Episode ID: <input value={episodeId} onChange={(e) => setEpisodeId(e.target.value)} />
-        </label>
+
         <textarea
           rows={8}
           placeholder="…or paste episode JSONL here"
@@ -141,7 +197,7 @@ export function App() {
           onChange={(e) => setJsonl(e.target.value)}
         />
         <button disabled={!jsonl || running} onClick={runForensics}>
-          {running ? "Running…" : "Run Forensics"}
+          {running ? "Running Forensics…" : "Run Forensics"}
         </button>
         {error && <p className="error">{error}</p>}
       </section>
