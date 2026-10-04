@@ -18,7 +18,7 @@ export function splitCompoundClaim(
     .filter((p) => p.length > 0);
 
   return parts.map((part, i) => {
-    const countMatch = /(\d+)\s*(?:contacts|rows|items)/i.exec(part);
+    const countMatch = /(\d+)\s*(?:contacts|rows|items|records|articles|challenges|pages|docs|links|prompts|words|placements)/i.exec(part);
     return {
       claimId: `${claimIdPrefix}-${String(i + 1).padStart(2, "0")}` as ClaimId,
       sourceRecordId,

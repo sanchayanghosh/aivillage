@@ -6,6 +6,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "build": "vite build",
     "api": "tsx src/server/forensicsServer.ts",
     "studio": "vite",
     "dev": "node scripts/dev.mjs"
