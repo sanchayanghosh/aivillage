@@ -1,2 +1,34 @@
-body { margin: 0; font-family: system-ui, sans-serif; background: #0f1115; color: #e6e8ee; }
-.wb .forensics-host .page { max-width: 960px; margin: 0 auto; padding: 24px; }.wb .forensics-host .page .panel{ background: #161a22; border: 1px solid #2a3040; border-radius: 8px; padding: 16px; margin: 16px 0; }.wb .forensics-host .page h1{ margin-bottom: 4px; }.wb .forensics-host .page .row{ display: flex; gap: 24px; margin-bottom: 12px; flex-wrap: wrap; }.wb .forensics-host .page label{ display: block; margin: 8px 0; }.wb .forensics-host .page textarea{ width: 100%; box-sizing: border-box; background: #0f1115; color: #e6e8ee; border: 1px solid #2a3040; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 12px; }.wb .forensics-host .page button{ background: #4f7cff; color: white; border: 0; border-radius: 6px; padding: 10px 18px; font-size: 14px; cursor: pointer; margin-top: 8px; }.wb .forensics-host .page button:disabled{ opacity: 0.5; cursor: not-allowed; }.wb .forensics-host .page table{ width: 100%; border-collapse: collapse; }.wb .forensics-host .page td, .wb .forensics-host .page th{ text-align: left; padding: 6px 8px; border-bottom: 1px solid #2a3040; }.wb .forensics-host .page .trace{ border-left: 3px solid #4f7cff; padding: 8px 12px; margin: 10px 0; background: #12151c; border-radius: 4px; }.wb .forensics-host .page pre{ white-space: pre-wrap; background: #0f1115; padding: 8px; border-radius: 4px; }.wb .forensics-host .page .delta{ color: #f0b429; margin-top: 6px; }.wb .forensics-host .page .cards{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }.wb .forensics-host .page .card{ border-radius: 8px; padding: 12px; border: 1px solid #2a3040; }.wb .forensics-host .page .card.benign{ border-color: #2fbf71; }.wb .forensics-host .page .card.deceptive{ border-color: #e5484d; }.wb .forensics-host .page .badge{ display: inline-block; font-size: 11px; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 999px; background: #2a3040; }.wb .forensics-host .page .error{ color: #e5484d; }.wb .forensics-host .page .muted{ color: #8b93a7; font-size: 13px; }.wb .forensics-host .page .disclaimer{ background: #2a2410; border: 1px solid #f0b429; color: #f0d060; padding: 10px 14px; border-radius: 8px; }.wb .forensics-host .page code{ background: #0f1115; padding: 2px 6px; border-radius: 4px; }
+body { margin: 0; }
+/* Forensics Studio, themed to match the light Maltego-style workbench */
+.wb .forensics-host { background: var(--chrome); color: var(--ink); }
+.wb .forensics-host .page { max-width: 1120px; margin: 0 auto; padding: 22px 24px 48px; }
+.wb .forensics-host .page header h1 { margin: 0 0 2px; font-size: 22px; color: var(--navy); }
+.wb .forensics-host .page header p { margin: 0; color: var(--dim); }
+.wb .forensics-host .page h2 { margin: 0 0 12px; font-size: 11px; letter-spacing: .8px; text-transform: uppercase; color: var(--navy); }
+.wb .forensics-host .panel { background: #fff; border: 1px solid var(--line); border-top: 3px solid var(--navy); border-radius: 5px; padding: 14px 16px; margin: 14px 0; box-shadow: 0 1px 3px rgba(15,43,70,.07); }
+.wb .forensics-host .row { display: flex; gap: 24px; margin-bottom: 8px; flex-wrap: wrap; }
+.wb .forensics-host label { display: block; margin: 8px 0; color: var(--dim); font-size: 12px; }
+.wb .forensics-host input, .wb .forensics-host select { font: 12.5px var(--sans); color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; }
+.wb .forensics-host input:focus, .wb .forensics-host select:focus, .wb .forensics-host textarea:focus { outline: none; border-color: var(--blue); }
+.wb .forensics-host textarea { width: 100%; box-sizing: border-box; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 8px; font: 12px var(--mono); }
+.wb .forensics-host button { background: var(--navy); color: #fff; border: 1px solid var(--navy); border-radius: 4px; padding: 7px 16px; font-size: 12.5px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+.wb .forensics-host button:hover:not(:disabled) { background: #17395b; }
+.wb .forensics-host button:disabled { opacity: .45; cursor: not-allowed; }
+.wb .forensics-host table { width: 100%; border-collapse: collapse; }
+.wb .forensics-host th { text-align: left; padding: 6px 10px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--dim); background: var(--panel); border-bottom: 1px solid var(--line); position: static; }
+.wb .forensics-host td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #edf0f3; }
+.wb .forensics-host .trace { border-left: 3px solid var(--blue); padding: 8px 12px; margin: 10px 0; background: var(--panel); border-radius: 0 4px 4px 0; }
+.wb .forensics-host pre { white-space: pre-wrap; background: #fff; border: 1px solid var(--line); padding: 8px; border-radius: 4px; font: 12px var(--mono); }
+.wb .forensics-host .delta { color: #8a5a00; margin-top: 6px; }
+.wb .forensics-host .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wb .forensics-host .card { border-radius: 5px; padding: 12px; border: 1px solid var(--line); background: #fff; }
+.wb .forensics-host .card.benign { border-color: var(--ok); background: #f1faf4; }
+.wb .forensics-host .card.deceptive { border-color: var(--bad); background: #fdf3f2; }
+.wb .forensics-host .badge { display: inline-block; font: 500 10px var(--mono); letter-spacing: .4px; padding: 3px 7px; border-radius: 3px; background: #dfe5ea; color: #3b4a5a; }
+.wb .forensics-host .badge.benign { background: #d5efdf; color: #146a3a; }
+.wb .forensics-host .badge.deceptive { background: #f8d9d5; color: #912219; }
+.wb .forensics-host .error { color: var(--bad); }
+.wb .forensics-host .muted { color: var(--dim); font-size: 12.5px; }
+.wb .forensics-host .disclaimer { background: #fcf0d0; border: 1px solid #e0b84a; border-left: 4px solid var(--warn); color: #6b4b00; padding: 9px 14px; border-radius: 4px; }
+.wb .forensics-host code { background: #edf1f5; padding: 1px 6px; border-radius: 3px; font: 12px var(--mono); }
+@media (max-width: 760px) { .wb .forensics-host .cards { grid-template-columns: 1fr; } }

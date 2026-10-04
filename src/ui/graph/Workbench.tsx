@@ -26,7 +26,7 @@ export default function Workbench() {
   const [ribbon, setRibbon] = useState("Investigate");
   const [cy, setCy] = useState<Core | null>(null);
   const [q, setQ] = useState("");
-  const [mode, setMode] = useState<"graph" | "forensics">("graph");
+  const [mode, setMode] = useState<"graph" | "forensics">(location.hash === "#forensics" ? "forensics" : "graph");
 
   const hidden = useMemo(() => new Set(nodes.filter(n => hiddenTypes.has(n.nodeType)).map(n => n.id)), [hiddenTypes]);
   const sel = nodes.find(n => n.id === selected) ?? null;
