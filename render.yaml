@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: swarm-evidence-graph-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run start:api
+    healthCheckPath: /healthz
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: CORS_ORIGIN
+        value: "*"

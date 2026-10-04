@@ -15,10 +15,11 @@ try {
 }
 
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../tests/fixtures");
-const PORT = Number(process.env.FORENSICS_API_PORT ?? 3210);
+const PORT = Number(process.env.PORT ?? process.env.FORENSICS_API_PORT ?? 3210);
+const ALLOWED_ORIGIN = process.env.CORS_ORIGIN ?? "*";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "Content-Type": "application/json" });
+  res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": ALLOWED_ORIGIN });
   res.end(JSON.stringify(body));
 }
 
@@ -32,8 +33,14 @@ function readBody(req: IncomingMessage): Promise<string> {
 }
 
 createServer(async (req, res) => {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, { "Access-Control-Allow-Origin": ALLOWED_ORIGIN, "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "content-type" });
+    return void res.end();
+  }
   try {
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+
+    if (req.method === "GET" && url.pathname === "/healthz") return sendJson(res, 200, { ok: true });
 
     if (req.method === "GET" && url.pathname === "/api/status") {
       const llm = llmConfigFromEnv();
@@ -55,7 +62,7 @@ createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/provider") {
       const result = await runLlmTurn(await readBody(req));
       if (!result.ok) return sendJson(res, result.status, { error: result.message, code: result.code });
-      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Access-Control-Allow-Origin": ALLOWED_ORIGIN });
       return void res.end(result.sse);
     }
 

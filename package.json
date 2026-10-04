@@ -12,13 +12,15 @@
     "dev": "node scripts/dev.mjs",
     "dataset:docs": "python3 scripts/download_dataset.py",
     "dataset:fetch": "python3 scripts/fetch_dataset_tables.py",
-    "dataset:extract": "python3 scripts/interpret_aivillage_dataset.py"
+    "dataset:extract": "python3 scripts/interpret_aivillage_dataset.py",
+    "start:api": "tsx src/server/forensicsServer.ts"
   },
   "dependencies": {
     "cytoscape": "^3.34.3",
     "libfx": "^0.0.10",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -30,7 +32,6 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^4.7.0",
     "jsdom": "^30.1.1",
-    "tsx": "^4.23.15",
     "typescript": "^5.5.4",
     "vite": "^5.4.21",
     "vitest": "^2.1.9"
