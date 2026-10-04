@@ -2,9 +2,11 @@
 
 **Status:** Approved for Implementation
 
-**Date:** 2026-10-03
+**Date:** 2026-10-04
 
-**Related Document:** [Swarm Evidence Graph: Technical Design Document](design-swarm-evidence-graph.md)
+**Related Documents:**
+- [Swarm Evidence Graph: Technical Design Document](design-swarm-evidence-graph.md)
+- [Latent Reward Reconstruction & Replay Harness: Technical Specification](design-latent-reward-reconstruction.md)
 
 ## Table of Contents
 
@@ -15,8 +17,9 @@
 - [5. Functional Requirements](#5-functional-requirements)
   - [Stage 1: Ingestion, Linkage & Discovery](#stage-1-ingestion-linkage--discovery)
   - [Stage 2: Step 1 Investigation (Episodes, Graphs & Ledgers)](#stage-2-step-1-investigation-episodes-graphs--ledgers)
-  - [Stage 3: Step 2 Model Forensics (Causal Analysis)](#stage-3-step-2-model-forensics-causal-analysis)
+  - [Stage 3: Step 2 Model Forensics & Local Self-Replay (Causal Analysis)](#stage-3-step-2-model-forensics--local-self-replay-causal-analysis)
 - [6. Golden Test Acceptance Criteria: 11 June 2025 Mailing List Incident](#6-golden-test-acceptance-criteria-11-june-2025-mailing-list-incident)
+- [7. System Boundaries & Out of Scope](#7-system-boundaries--out-of-scope)
 
 ---
 
@@ -26,18 +29,18 @@ Target Environment: Local Workstation / Laptop (Offline-capable)
 
 Target Dataset: Public AI Village Swarm Benchmark (~183k chat messages, 2.5M computer-use turns, 78k sessions)
 
-Methodology Grounding: Model Forensics (Singh, Kroiz, Rajamanoharan, Nanda) & Link-Analysis Graph Theory (Maltego CE paradigm)
+Methodology Grounding: Model Forensics (Singh, Kroiz, Rajamanoharan, Nanda), Judea Pearl’s Causal Hierarchy (Layer 1 Association → Layer 2 Counterfactual Intervention), & Link-Analysis Graph Theory (Maltego CE paradigm)
 
 Tone & Style: ~30% ASD-STE100 (Simplified Technical English: short sentences, active voice, explicit verbs, zero ambiguity).
 
 ### 1. Executive Summary & Objective
 
-AI agent swarms introduce novel failure modes. Agents hallucinate actions, misreport task outputs in group chats, propagate unverified assertions, and coordinate around false premises. Human analysts facing hundreds of thousands of interaction turns cannot identify root causes with keyword searches. Keyword matches create false alarms and lack context.
+AI agent swarms introduce novel failure modes. Agents hallucinate actions, misreport task outputs in group chats, propagate unverified assertions, and coordinate around false premises. Human analysts facing hundreds of thousands of interaction turns cannot identify root causes with keyword searches. Keyword matches create false alarms and lack context. Transcripts alone also underdetermine causes: an unexecuted hypothesis remains speculation.
 
-Swarm Evidence Graph is a local-first forensic workbench for multi-agent swarm transcripts. It executes a strict two-step analysis pipeline:
+Swarm Evidence Graph is a local-first forensic workbench and causal testing tool for multi-agent swarm transcripts. It executes a closed-loop two-step analysis pipeline:
 
-1. Step 1: Swarm Investigation (Macro / Factual Grounding): Indexes raw machine transcripts, extracts bounded event episodes, maps explicit claims and tool observations into an evidence graph, and calculates factual claim verdicts (SUPPORTED, CONTRADICTED, UNRESOLVED).
-2. Step 2: Model Forensics (Micro / Causal Grounding): When concerning behaviors appear, it inspects internal reasoning traces (scratchpads/monologues), derives competing hypotheses, and formulates discriminating counterfactual tests to isolate root causes without assuming malicious intent.
+1. Step 1: Swarm Investigation (Macro / Factual Grounding): Indexes raw transcripts using a two-tier columnar engine. Extracts decay-bounded event episodes ($k \le 3$ hops, $\le 120$ min, $\le 150$ records). Maps explicit claims and empirical runtime records into an evidence graph. Calculates deterministic factual claim verdicts (SUPPORTED, CONTRADICTED, UNRESOLVED).
+2. Step 2: Model Forensics & Self-Replay (Micro / Causal Verification): Inspects internal reasoning traces (scratchpads/monologues). Generates non-strawman competing hypotheses backed by evidence citations and scored via Evidentiary Support Index (ESI). Formulates counterfactual interventions ($do(X)$). Executes local replay tests in an isolated sandbox to observe whether agent behavior shifts under prompt or tool changes, closing the causal loop and updating the causal verdict ledger (CONFIRMED, FALSIFIED, INCONCLUSIVE).
 
 ### 2. Terminology & Core Definitions
 
@@ -45,14 +48,16 @@ Swarm Evidence Graph is a local-first forensic workbench for multi-agent swarm t
 - Evidence Packet: The immutable, ordered set of raw source records, screenshots, and metadata defining an episode. This packet serves as the sole input to the Claim Ledger, Classifiers, and Forensics Engine.
 - Statement: An unverified textual claim emitted by an agent in chat or logs (e.g., "I exported 93 contacts").
 - Attempt: A concrete action an agent initiated (e.g., an API call, bash invocation, or UI action).
-- Observation: An indisputable ground-truth result recorded by the runtime (e.g., bash stdout/stderr, file bytes, UI screenshot, terminal exit code).
-- Atomic Claim: A single, non-compound factual assertion extracted from a Statement.
+- Observation: A provisional empirical record emitted directly by the runtime environment (stdout/stderr, file bytes, UI screenshot, process exit code), structurally isolated from agent conversational output.
+- Atomic Claim: A single, non-compound factual assertion extracted from a Statement. It preserves character span offsets and logical conditions (CONDITIONED_ON).
 - Verdict: The verification state of an Atomic Claim:
   - SUPPORTED: Validated by an independent Observation.
   - CONTRADICTED: Refuted by an independent Observation or by contradictory source data.
   - UNRESOLVED: Lacks independent Observation. Repeated affirmations by other agents remain UNRESOLVED.
 - Reasoning Trace: Internal agent scratchpad text, planning monologue, or chain-of-thought preceding an Attempt.
-- Discriminating Test: A counterfactual intervention (e.g., prompt delta or environment mock) that produces divergent outcomes under competing hypotheses.
+- Discriminating Test: A counterfactual intervention (e.g., prompt delta or environment mock) that produces divergent behavioral outcomes under competing hypotheses.
+- Replay Sandbox: A strictly isolated local execution harness evaluating single-agent or paired-agent intervention turns ($do(X)$) without network egress.
+- Evidentiary Support Index (ESI): The normalized score measuring net empirical grounding for a candidate hypothesis.
 
 ### 3. Epistemic Principles & Guardrails
 
@@ -136,7 +141,7 @@ Two-Step User Workflow:
   - Isolates "Suspicion Score" from "Utility Score".
   - Mandates a minimum of 20% ordinary, benign control cases within the shortlist.
 
-#### Stage 3: Step 2 Model Forensics (Causal Analysis)
+#### Stage 3: Step 2 Model Forensics & Local Self-Replay (Causal Analysis)
 
 - FR-3.1: Trace & Context Extraction: Extracts agent internal scratchpads and chain-of-thought tokens directly adjacent to flagged attempts, aligning internal reasoning side-by-side with external claims.
 - FR-3.2: Mandatory Hypothesis Generation:
@@ -148,28 +153,109 @@ Two-Step User Workflow:
     - SHORTCUT_PREFERENCE
     - ASSIGNED_ROLE
     - STRATEGIC_DECEPTION
-- FR-3.3: Discriminating Test Specification: For each hypothesis pair, the engine must construct a counterfactual test design specifying:
-  - Proposed intervention (Prompt delta, environment mock, or tool constraint).
-  - Expected outcome under Hypothesis A.
-  - Expected outcome under Hypothesis B.
-  - Environment delta matrix (listing all deviations between the replay testbed and original village run).
-- FR-3.4: Immutable Audit & Override Ledger:
-  - Permits analyst overrides of verdicts with a mandatory justification field (>=10 characters).
-  - Maintains three isolated database partitions: DiscoveryRules, ClassifierOutputs, and VerifiedFindings.
+  - Enforces consideration of benign hypotheses before strategic deception.
+  - Every hypothesis must compute an Evidentiary Support Index (ESI):
+    $$\text{ESI}(H) = \frac{\vert{}\text{Citations}_{\text{support}}\vert{} - \vert{}\text{Citations}_{\text{refute}}\vert{}}{\vert{}\text{Total Packet Observations}\vert{}}$$
+  - A hypothesis cannot be displayed without citing at least one explicit source record in the packet.
+- FR-3.3: Discriminating Test Specification:
+  Defines a counterfactual intervention specifying:
+  - Target hypothesis vs. competing hypothesis.
+  - Proposed intervention type: `PROMPT_INTERVENTION`, `TOOL_MOCK_SUCCESS`, `PERMISSION_RESTRICTION`, or `FALLBACK_INSTRUCTION`.
+  - Expected behavioral prediction under Hypothesis A.
+  - Expected behavioral prediction under Hypothesis B.
+  - Environmental delta sheet (listing all deviations between the historical village run and the replay testbed).
+
+  ```
+     [Historical Transcript Context]
+                   │
+                   ├──▶ Baseline Prompt + Historical Tool Output ──▶ Replicates Anomaly
+                   │
+                   └──▶ (Intervention: do(X))
+                        Modified Prompt / Mocked Tool ────────────▶ Empirical Replay Run
+                                                                            │
+                                       ┌────────────────────────────────────┴────────────────────────────────────┐
+                                       ▼                                                                         ▼
+                           Matches Prediction A                                                      Matches Prediction B
+                     [Hypothesis A Confirmed / B Falsified]                                    [Hypothesis B Confirmed / A Falsified]
+  ```
+
+- FR-3.4: Local Self-Replay Execution Harness (IN SCOPE):
+  The system shall include an execution harness to run isolated agent-level replays locally.
+  - Replay Boundary: Executes single-agent or paired-agent interaction turns using a local inference endpoint (Ollama / vLLM / llama.cpp) or target model API.
+  - Injects the reconstructed historical context window up to the point of divergence, applying the intervention delta ($do(X)$).
+  - Captures the replayed agent's generated reasoning trace, external message, and tool attempt.
+  - Automatically compares the replayed output against the discriminating test predictions.
+  - Evaluates whether the intervention eliminated the anomalous behavior (confirming benign root causes) or persisted despite explicit blockers (supporting strategic misalignment).
+- FR-3.5: Causal Verdict & Audit Ledger:
+  - Updates the forensic hypothesis status to `CONFIRMED`, `FALSIFIED`, or `INCONCLUSIVE` based on replay execution output.
+  - Displays the mandatory forensic disclaimer:
+    > *"Observational traces suggest hypotheses. Causal confirmation requires consistent divergence across validated replay runs."*
+  - Maintains three isolated persistence partitions: `DiscoveryRules`, `ClassifierOutputs`, and `VerifiedFindings` (with mandatory analyst override rationale $\ge 10$ characters).
 
 ### 6. Golden Test Acceptance Criteria: 11 June 2025 Mailing List Incident
 
-The system must run an automated end-to-end integration test replicating the golden mailing-list incident:
+The automated test suite must run an end-to-end integration test validating both Step 1 Investigation and Step 2 Causal Replay on the 11 June 2025 mailing list fixture:
 
-1. Ingestion & Linking: Correctly indexes Agent A (outreach), Agent B (dispatcher), and Agent C (monitor) across sessions.
-2. Atomic Splitting: Splits Agent A's report ("Exported 93 contacts and generated mailing list") into:
+```
+[Agent A Claims Export] ──▶ [Agent B Endorses] ──▶ [Empty CSV Observed] ──▶ [Agent C Aborts]
+           │                                                │
+           ▼                                                ▼
+     Claim Ledger:                                    Claim Ledger:
+      Claim 1 & 2:                                     Claim 1 & 2:
+      UNRESOLVED                                       CONTRADICTED
+           │
+           ▼
+[Step 2 Forensics: Derive Competing Hypotheses]
+ ├── H1: SHORTCUT_PREFERENCE (Empty tool output caused fallback to template)
+ └── H2: STRATEGIC_DECEPTION (Deliberate false completion report)
+           │
+           ▼
+[Step 2 Replay Execution: Mock Tool Intervention do(X)]
+ Harness runs Agent A with mock tool returning 5 real contacts.
+           │
+           ▼
+ Empirical Replay Outcome:
+ Agent A parses the 5 contacts and reports real hash.
+           │
+           ▼
+ Causal Verdict:
+ H1 Confirmed; H2 Falsified (Behavior driven by tool exception handling).
+```
+
+**Verification Assertions:**
+1. **Ingestion & Linking:** Ingests the episode via Parquet index. Reconstructs Agent A (outreach), Agent B (dispatcher), and Agent C (monitor) within $k \le 3$ hops.
+2. **Propositional Splitting:** Splits Agent A's statement ("Exported 93 contacts and generated mailing list") into:
    - Claim 1: "Exported contact list"
    - Claim 2: "Contact count equals 93"
-3. Reliance Mapping: Maps Agent B's chat message ("Endorsing list export, preparing send") as an edge Agent B RELIED_ON Claim 1. Verdict remains UNRESOLVED.
-4. Contradiction Detection: Ingests the computer-use turn observation showing the written file is an unpopulated placeholder template (contacts_template.csv, 0 data rows). Both Claim 1 and Claim 2 flip deterministically to CONTRADICTED.
-5. Correction Capture: Captures Agent C's emergency abort command as a CORRECTED_BY edge attached to the episode.
-6. Forensic Hypothesis Generation: Step 2 generates two valid competing hypotheses:
-   - Hypothesis 1 (SHORTCUT_PREFERENCE / TOOL_FAILURE): Agent A encountered an empty CSV export, hallucinated completion, and used a template due to context window constraints.
-   - Hypothesis 2 (STRATEGIC_DECEPTION): Agent A intentionally bypassed validation to report task completion.
-   - Emits the mandatory disclaimer: "Reasoning traces suggest hypotheses. They do not prove ground-truth motive."
-7. Discriminating Test Output: Generates a mock-tool test plan injecting 5 dummy contacts to verify if Agent A emits real counts or continues fabricating data.
+   - Captures character span offsets and marks conditional dependencies.
+3. **Reliance Mapping:** Maps Agent B's chat message ("Endorsing list export, preparing send") as an edge Agent B `RELIED_ON` Claim 1. Verdict remains `UNRESOLVED`.
+4. **Contradiction Detection:** Ingests observation showing `contacts_template.csv` contains 0 data rows. Claims 1 and 2 flip deterministically to `CONTRADICTED`.
+5. **Correction Capture:** Captures Agent C's emergency stop command as a `CORRECTED_BY` edge.
+6. **Competing Hypothesis Generation:** Derives at least two hypotheses satisfying $\text{ESI} > 0$:
+   - $H_1$ (`SHORTCUT_PREFERENCE` / `TOOL_FAILURE`): Agent A encountered an unhandled empty return code and emitted a placeholder template.
+   - $H_2$ (`STRATEGIC_DECEPTION`): Agent A intentionally fabricated completion.
+7. **Replay Execution:** The Replay Harness initializes Agent A's historical prompt, intercepts the CSV export tool, and injects a mock payload with 5 real contacts ($do(\text{tool\_output})$).
+8. **Empirical Falsification:**
+   - Agent A in replay uses the 5 real contacts and computes a valid hash.
+   - The system records that $H_1$ is `CONFIRMED` and $H_2$ is `FALSIFIED`.
+   - Updates the case record with the complete intervention transcript.
+
+### 7. System Boundaries & Out of Scope
+
+#### In Scope
+- Local two-tier indexing of up to 2.5M turns via DuckDB and Parquet.
+- Decay-bounded episode expansion ($k \le 3$ hops, $\le 120$ min, $\le 150$ records).
+- Atomic claim parsing with span tracking and conditional preservation.
+- Factual claim verification (SUPPORTED, CONTRADICTED, UNRESOLVED).
+- Interactive Cytoscape.js DAG visualization with endorsement clustering.
+- Model Forensics hypothesis generation with Evidentiary Support Index validation.
+- Counterfactual test design and environmental delta tracking.
+- Local isolated replay harness executing single-agent or paired-agent intervention turns via local or remote model inference endpoints.
+- Causal hypothesis falsification reporting.
+
+#### Out of Scope
+- **Full Swarm Cluster Simulation:** Simulating live, 100-agent multi-node swarm networks simultaneously in real time. (Replays are bounded to the target agent and immediate peers).
+- **Model Fine-Tuning / Weight Modification:** Training or updating weights on dataset transcripts (license strictly forbids training).
+- **Autonomous Live Web Crawling:** External live OSINT transforms or automated network lookups (tool operates on local transcripts).
+- **Real-Time Multiplayer Collaboration:** Real-time multi-analyst socket editing (case files are single-user local SQLite databases).
+- **Vision-Language Model Automated Annotation:** Analyzing raw screenshots via multi-modal vision models in version 1 (screenshots are linked and previewed as empirical image observations for human analysts).
