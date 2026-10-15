@@ -4,8 +4,8 @@ import { iconSvg, TYPE_LABEL } from "./icons";
 
 const pct = (p: number) => Math.round(p * 100) + "%";
 
-export default function Detail({ onForensics, node, nodes, edges, confirmed, overrides, onConfirm, onOverride, onSelect }: {
-  onForensics: () => void; node: GNode | null; nodes: GNode[]; edges: GEdge[]; confirmed: Set<string>; overrides: Record<string, string>;
+export default function Detail({ onForensics, onSplitForensics, node, nodes, edges, confirmed, overrides, onConfirm, onOverride, onSelect }: {
+  onForensics: () => void; onSplitForensics?: () => void; node: GNode | null; nodes: GNode[]; edges: GEdge[]; confirmed: Set<string>; overrides: Record<string, string>;
   onConfirm: (id: string) => void; onOverride: (id: string, v: string, why: string) => void; onSelect: (id: string) => void;
 }) {
   const [why, setWhy] = useState("");
@@ -69,7 +69,28 @@ export default function Detail({ onForensics, node, nodes, edges, confirmed, ove
           <p className="note">A model answer is a classifier output. It never sets a verdict by itself.</p>
         </section>)}
 
-      {node.verdict === "CONTRADICTED" && <section><h4>Step 2</h4><button className="btn primary" onClick={onForensics}>Open episode in Forensics Studio →</button><p className="note">Concerning event. Forensics always produces at least two competing explanations, including benign ones.</p></section>}
+      {node.verdict === "CONTRADICTED" && (
+        <section>
+          <h4>Step 2 Causal Forensics</h4>
+          <div style={{ marginBottom: 8 }}>
+            <button
+              className="btn primary"
+              style={{ width: "100%", marginBottom: 6 }}
+              onClick={onSplitForensics ?? onForensics}
+            >
+              ◫ Investigate Claim in Forensics Studio (Split View)
+            </button>
+            <button
+              className="btn"
+              style={{ width: "100%" }}
+              onClick={onForensics}
+            >
+              🔬 Full Deep Dive Forensics →
+            </button>
+          </div>
+          <p className="note">Level 1 discovered this contradicted claim. Step 2 continues directly from this finding to analyze internal thoughts, competing hypotheses, and counterfactual simulation.</p>
+        </section>
+      )}
 
       <section><h4>Links <span className="count">{links.length}</span></h4>
         <ul className="links">{links.map(e => { const o = other(e); return (

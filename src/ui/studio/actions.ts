@@ -1,7 +1,7 @@
 import { apiFetch } from "./keys";
 import { studio, type BottomTab, type Layout, type View } from "./store";
 import type { NodeType, Verdict } from "../graph/types";
-import { edges as mockEdges, nodes as mockNodes } from "../graph/mock/data";
+import { edges as mockEdges, nodes as mockNodes, june11Jsonl, mockForensicsReport } from "../graph/mock/data";
 import type { GraphPayload } from "../graph/types";
 import { buildOfflineReport } from "../agent/offlineReport";
 
@@ -15,10 +15,39 @@ export function resolveNode(query: string) {
 
 export const actions = {
   selectNode(id: string | null, by: "user" | "agent" = "user") {
-    studio.set({ selected: id }, id ? `${by} selected "${label(id)}"` : `${by} cleared the selection`);
+    const node = id ? studio.get().nodes.find((n) => n.id === id) : null;
+    studio.set(
+      {
+        selected: id,
+        ...(node && node.nodeType === "CLAIM" ? { targetClaimId: id } : {}),
+      },
+      id ? `${by} selected "${label(id)}"` : `${by} cleared the selection`
+    );
   },
   switchView(view: View) {
-    studio.set({ view }, `switched to ${view === "graph" ? "Step 1 Investigation" : "Step 2 Forensics Studio"}`);
+    studio.set(
+      { view },
+      `switched to ${view === "graph" ? "Step 1 Investigation Graph" : view === "split" ? "Split Studio (Graph + Forensics)" : "Step 2 Forensics Studio"}`
+    );
+  },
+  investigateInForensics(claimId?: string, split?: boolean) {
+    const s = studio.get();
+    const target =
+      claimId ??
+      s.selected ??
+      s.nodes.find((n) => n.nodeType === "CLAIM" && (s.overrides[n.id] ?? n.verdict) === "CONTRADICTED")?.id ??
+      s.nodes.find((n) => n.nodeType === "CLAIM")?.id ??
+      null;
+    const nextView: View = split ? "split" : "forensics";
+    studio.set(
+      { view: nextView, targetClaimId: target, selected: target },
+      target
+        ? `opened ${split ? "Split Studio" : "Step 2 Forensics"} targeting Level 1 claim "${label(target)}"`
+        : `opened ${split ? "Split Studio" : "Step 2 Forensics"} for active Level 1 investigation`
+    );
+  },
+  setTargetClaim(claimId: string | null) {
+    studio.set({ targetClaimId: claimId }, claimId ? `targeted Level 1 claim "${label(claimId)}"` : "cleared targeted claim");
   },
   toggleType(t: NodeType, visible?: boolean) {
     const hidden = new Set(studio.get().hiddenTypes);
@@ -58,17 +87,74 @@ export const actions = {
 
   async loadDataset(name: string) {
     if (name === "none") {
-      studio.set({ dataset: "none", nodes: [], edges: [], selected: null, leads: null, leadsError: null, report: null, imported: null }, "cleared the workspace");
+      studio.set({ dataset: "none", nodes: [], edges: [], selected: null, targetClaimId: null, activeJsonl: "", leads: null, leadsError: null, report: null, imported: null }, "cleared the workspace");
+      studio.patchForensics({ report: null, episodeId: "", error: null });
       return;
     }
     if (name === "mock") {
-      studio.set({ dataset: "mock", nodes: mockNodes, edges: mockEdges, selected: "claim_1", layout: "preset", hiddenTypes: [], leads: null, leadsError: null, report: null }, "loaded the built-in sample case");
+      studio.set(
+        {
+          dataset: "mock",
+          nodes: mockNodes,
+          edges: mockEdges,
+          selected: "claim_1",
+          targetClaimId: "claim_1",
+          activeJsonl: june11Jsonl,
+          layout: "preset",
+          hiddenTypes: [],
+          leads: null,
+          leadsError: null,
+          report: null,
+        },
+        "loaded the built-in sample case"
+      );
+      studio.patchForensics({ report: mockForensicsReport, episodeId: "EP-0611-A", error: null });
+      void apiFetch("/api/fixtures/june11_mailing_list.jsonl")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.content && studio.get().dataset === "mock") {
+            studio.set({ activeJsonl: d.content });
+          }
+        })
+        .catch(() => undefined);
       return;
     }
     const res = await apiFetch(`/api/graph/${encodeURIComponent(name)}`);
     if (!res.ok) throw new Error(`Could not build a graph for ${name}: ${(await res.json().catch(() => ({}))).error ?? res.status}`);
-    const g = (await res.json()) as GraphPayload;
-    studio.set({ dataset: name, nodes: g.nodes, edges: g.edges, selected: null, leads: null, leadsError: null, report: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, fitTick: studio.get().fitTick + 1 }, `loaded dataset ${name} (${g.nodes.length} entities)`);
+    const g = (await res.json()) as GraphPayload & { jsonl?: string };
+    let jsonl = g.jsonl ?? "";
+    if (!jsonl) {
+      try {
+        const fRes = await apiFetch(`/api/fixtures/${encodeURIComponent(name)}`);
+        if (fRes.ok) {
+          const d = await fRes.json();
+          jsonl = d.content ?? "";
+        }
+      } catch {}
+    }
+    const targetClaim =
+      g.nodes.find((n) => n.nodeType === "CLAIM" && n.verdict === "CONTRADICTED")?.id ??
+      g.nodes.find((n) => n.nodeType === "CLAIM")?.id ??
+      null;
+
+    studio.set(
+      {
+        dataset: name,
+        nodes: g.nodes,
+        edges: g.edges,
+        selected: targetClaim,
+        targetClaimId: targetClaim,
+        activeJsonl: jsonl,
+        leads: null,
+        leadsError: null,
+        report: null,
+        layout: "breadthfirst",
+        hiddenTypes: [],
+        expanded: false,
+        fitTick: studio.get().fitTick + 1,
+      },
+      `loaded dataset ${name} (${g.nodes.length} entities)`
+    );
   },
 
   async refreshServer() {
@@ -82,8 +168,27 @@ export const actions = {
 
   async runForensics() {
     const h = studio.forensicsHandlers();
-    if (!h) throw new Error("Open the Forensics Studio tab once so it can register. Then retry.");
-    await h.run();
+    if (h) {
+      await h.run();
+      return;
+    }
+    const s = studio.get();
+    const jsonl = s.activeJsonl;
+    if (!jsonl) return;
+    const epId = s.dataset.startsWith("upload:") ? s.dataset.slice(7) : s.dataset === "mock" ? "EP-0611-A" : s.dataset.replace(/\.jsonl$/, "");
+    studio.patchForensics({ running: true, error: null });
+    try {
+      const res = await apiFetch("/api/forensics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonl, episodeId: epId, usePython: true }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "forensics failed");
+      studio.patchForensics({ report: d, episodeId: epId, running: false, error: null });
+    } catch (e) {
+      studio.patchForensics({ error: e instanceof Error ? e.message : String(e), running: false });
+    }
   },
   async loadForensicsFixture(name: string) {
     const h = studio.forensicsHandlers();
@@ -97,9 +202,26 @@ export const actions = {
     const body = await res.json();
     if (!res.ok) throw new Error(body.error ?? `Import failed (${res.status})`);
     const g = body.graph as GraphPayload;
+    const targetClaim =
+      g.nodes.find((n) => n.nodeType === "CLAIM" && n.verdict === "CONTRADICTED")?.id ??
+      g.nodes.find((n) => n.nodeType === "CLAIM")?.id ??
+      null;
     studio.set({
-      dataset: `upload:${name}`, nodes: g.nodes, edges: g.edges, graphNote: g.note ?? null, selected: null, leads: null, leadsError: null, layout: "breadthfirst", hiddenTypes: [], expanded: false, report: null,
-      imported: { name, jsonl: body.jsonl, report: body.report, at: Date.now() }, fitTick: studio.get().fitTick + 1,
+      dataset: `upload:${name}`,
+      nodes: g.nodes,
+      edges: g.edges,
+      graphNote: g.note ?? null,
+      selected: targetClaim,
+      targetClaimId: targetClaim,
+      activeJsonl: body.jsonl,
+      leads: null,
+      leadsError: null,
+      layout: "breadthfirst",
+      hiddenTypes: [],
+      expanded: false,
+      report: null,
+      imported: { name, jsonl: body.jsonl, report: body.report, at: Date.now() },
+      fitTick: studio.get().fitTick + 1,
     }, `imported transcript "${name}" (${body.report.format}, ${body.report.records} records, ${body.claims} claims)`);
     return body.report as import("./store").IngestReport;
   },

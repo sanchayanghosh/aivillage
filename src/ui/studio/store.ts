@@ -3,7 +3,7 @@ import type { GEdge, GNode, NodeType, LeadsPayload } from "../graph/types";
 
 export type Layout = "preset" | "breadthfirst" | "cose" | "circle" | "grid";
 export type BottomTab = "leads" | "ledger" | "judge" | "episodes" | "queue" | "eval" | "audit" | "coverage" | "report";
-export type View = "graph" | "forensics";
+export type View = "graph" | "split" | "forensics";
 
 export interface ForensicsHandlers {
   loadFixture: (name: string) => Promise<void>;
@@ -57,6 +57,8 @@ export interface StudioState {
   leadsError: string | null;
   episodeFilter: string | null;
   graphNote: string | null;
+  activeJsonl: string;
+  targetClaimId: string | null;
 }
 
 const initial: StudioState = {
@@ -89,6 +91,8 @@ const initial: StudioState = {
   leadsError: null,
   episodeFilter: null,
   graphNote: null,
+  activeJsonl: "",
+  targetClaimId: null,
 };
 
 let state = initial;
@@ -118,4 +122,117 @@ export const studio = {
 
 export function useStudio<T>(selector: (s: StudioState) => T): T {
   return useSyncExternalStore(studio.subscribe, () => selector(state));
+}
+
+export interface ContradictedClaimFinding {
+  id: string;
+  label: string;
+  previewText: string;
+  time?: string;
+  agent?: string;
+  sourceRecordId: string;
+  decisiveObservation?: {
+    id: string;
+    label: string;
+    previewText: string;
+    time?: string;
+  };
+}
+
+export interface Level1AnalysisContext {
+  episodeId: string;
+  datasetName: string;
+  source: "sample" | "fixture" | "upload" | "none";
+  jsonl: string;
+  totalRecords: number;
+  totalClaims: number;
+  supportedCount: number;
+  contradictedCount: number;
+  unresolvedCount: number;
+  contradictedClaims: ContradictedClaimFinding[];
+  targetClaim: ContradictedClaimFinding | null;
+  targetEpisodeId: string | null;
+  hasActiveAnalysis: boolean;
+}
+
+export function getLevel1Context(s: StudioState): Level1AnalysisContext {
+  const claims = s.nodes.filter((n) => n.nodeType === "CLAIM");
+  const getVerdict = (n: GNode) => s.overrides[n.id] ?? n.verdict ?? "UNRESOLVED";
+  const supported = claims.filter((n) => getVerdict(n) === "SUPPORTED");
+  const contradicted = claims.filter((n) => getVerdict(n) === "CONTRADICTED");
+  const unresolved = claims.filter((n) => getVerdict(n) === "UNRESOLVED");
+
+  let episodeId = s.dataset;
+  if (s.dataset === "mock") episodeId = "june11_mailing_list";
+  else if (s.dataset.startsWith("upload:")) episodeId = s.dataset.slice(7).replace(/\.[^.]+$/, "");
+  else if (s.dataset.endsWith(".jsonl")) episodeId = s.dataset.replace(/\.jsonl$/, "");
+
+  if (s.episodeFilter) {
+    episodeId = s.episodeFilter;
+  }
+
+  const findDecisiveObs = (claimNode: GNode) => {
+    const decisiveEdge = s.edges.find((e) => e.source === claimNode.id && (e.edgeType === "CONTRADICTED_BY" || e.edgeType === "SUPPORTED_BY"));
+    if (decisiveEdge) {
+      const o = s.nodes.find((n) => n.id === decisiveEdge.target);
+      if (o) return { id: o.id, label: o.label, previewText: o.previewText, time: o.time };
+    }
+    const obsBefore = claimNode.time ? s.nodes.filter((n) => n.nodeType === "OBSERVATION" && n.time && n.time <= claimNode.time!) : [];
+    if (obsBefore.length > 0) {
+      const latest = obsBefore.reduce((a, b) => ((a.time ?? "") > (b.time ?? "") ? a : b));
+      return { id: latest.id, label: latest.label, previewText: latest.previewText, time: latest.time };
+    }
+    return undefined;
+  };
+
+  const contradictedFindings: ContradictedClaimFinding[] = contradicted.map((c) => ({
+    id: c.id,
+    label: c.label,
+    previewText: c.previewText,
+    time: c.time,
+    agent: c.agent,
+    sourceRecordId: c.sourceRecordId,
+    decisiveObservation: findDecisiveObs(c),
+  }));
+
+  // Target claim resolution:
+  let targetNode = s.targetClaimId ? s.nodes.find((n) => n.id === s.targetClaimId) : null;
+  if (!targetNode && s.selected) {
+    const sel = s.nodes.find((n) => n.id === s.selected);
+    if (sel && sel.nodeType === "CLAIM") targetNode = sel;
+  }
+  if (!targetNode && contradicted.length > 0) {
+    targetNode = contradicted[0];
+  }
+  if (!targetNode && claims.length > 0) {
+    targetNode = claims[0];
+  }
+
+  const targetClaim: ContradictedClaimFinding | null = targetNode ? {
+    id: targetNode.id,
+    label: targetNode.label,
+    previewText: targetNode.previewText,
+    time: targetNode.time,
+    agent: targetNode.agent,
+    sourceRecordId: targetNode.sourceRecordId,
+    decisiveObservation: findDecisiveObs(targetNode),
+  } : null;
+
+  const hasActiveAnalysis = s.dataset !== "none" || s.nodes.length > 0 || Boolean(s.activeJsonl);
+
+  return {
+    episodeId: episodeId || "ep-active",
+    datasetName: s.dataset === "mock" ? "June 11 2025 mailing-list incident" : s.dataset === "none" ? "No dataset loaded" : s.dataset.startsWith("upload:") ? s.dataset.slice(7) : s.dataset,
+    source: s.dataset === "mock" ? "sample" : s.dataset.startsWith("upload:") ? "upload" : s.dataset.endsWith(".jsonl") ? "fixture" : "none",
+    jsonl: s.activeJsonl,
+    totalRecords: s.nodes.length,
+    totalClaims: claims.length,
+    supportedCount: supported.length,
+    contradictedCount: contradicted.length,
+    unresolvedCount: unresolved.length,
+    contradictedClaims: contradictedFindings,
+    targetClaim,
+    targetEpisodeId: s.episodeFilter,
+    hasActiveAnalysis,
+  };
 }

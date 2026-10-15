@@ -52,6 +52,7 @@ export interface GraphPayload {
   nodes: GNode[];
   edges: GEdge[];
   note?: string;
+  jsonl?: string;
 }
 
 export interface CoverageRow { eventType: string; count: number; role: string }

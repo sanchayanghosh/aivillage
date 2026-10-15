@@ -38,7 +38,7 @@ export async function studioRoutes(req: IncomingMessage, res: ServerResponse, ur
     const name = p.slice("/api/graph/".length);
     if (name.includes("/") || name.includes("..") || !name.endsWith(".jsonl")) return send(res, 400, { error: "bad name" }), true;
     const inv = await investigate(readFileSync(join(fixtureDir, name), "utf8"), name.replace(/\.jsonl$/, ""));
-    send(res, 200, inv.graph);
+    send(res, 200, { ...inv.graph, jsonl: inv.jsonl });
     return true;
   }
 

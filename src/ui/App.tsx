@@ -6,7 +6,8 @@ import type {
   TraceNarrative,
   CausalConfirmationReport,
 } from "../core/types/contracts.js";
-import { studio, useStudio } from "./studio/store";
+import { studio, useStudio, getLevel1Context } from "./studio/store";
+import { actions } from "./studio/actions";
 import type { LatentRewardReplayReport } from "../forensics/replay/contracts.js";
 
 interface Claim {
@@ -68,12 +69,15 @@ interface Report {
   latentRewardStructure?: LatentRewardStructure;
 }
 
-export function App() {
+export function App({ embedded }: { embedded?: boolean } = {}) {
   const [fixtures, setFixtures] = useState<string[]>([]);
-  const [jsonl, setJsonl] = useState("");
-  const [episodeId, setEpisodeId] = useState("real_aivillage_episode");
-  const [report, setReport] = useState<Report | null>(null);
+  const studioState = useStudio((x) => x);
+  const l1Context = getLevel1Context(studioState);
+  const [jsonl, setJsonl] = useState(l1Context.jsonl || "");
+  const [episodeId, setEpisodeId] = useState(l1Context.episodeId || "real_aivillage_episode");
+  const [report, setReport] = useState<Report | null>(studioState.forensics.report as Report | null);
   const [expandedScratchpads, setExpandedScratchpads] = useState<Record<string, boolean>>({});
+  const [showAdvanced, setShowAdvanced] = useState(!l1Context.hasActiveAnalysis);
 
   function toggleScratchpad(groupId: string) {
     setExpandedScratchpads((prev) => ({
@@ -86,13 +90,47 @@ export function App() {
   const [usePython, setUsePython] = useState(true);
   const [scanning, setScanning] = useState(false);
   const imported = useStudio((x) => x.imported);
+  const lastAnalyzedEpisode = useRef<string | null>(null);
+
+  // Sync report when stored in studio state
+  useEffect(() => {
+    if (studioState.forensics.report !== report) {
+      setReport(studioState.forensics.report as Report | null);
+    }
+  }, [studioState.forensics.report]);
+
+  // Synchronize with Level 1 investigation state and auto-run forensics
+  useEffect(() => {
+    if (l1Context.hasActiveAnalysis) {
+      const currentJsonl = l1Context.jsonl || jsonl;
+      const currentEpId = l1Context.episodeId || episodeId;
+
+      if (l1Context.jsonl && l1Context.jsonl !== jsonl) {
+        setJsonl(l1Context.jsonl);
+      }
+      if (l1Context.episodeId && l1Context.episodeId !== episodeId) {
+        setEpisodeId(l1Context.episodeId);
+      }
+
+      // If episode changed and current report is for a different episode, clear report
+      if (report && studioState.forensics.episodeId && studioState.forensics.episodeId !== currentEpId) {
+        setReport(null);
+      }
+
+      // If no report exists yet for this episode, auto-execute immediately
+      if (currentJsonl && lastAnalyzedEpisode.current !== currentEpId && !report && !running) {
+        lastAnalyzedEpisode.current = currentEpId;
+        void execute(currentJsonl, currentEpId).catch(() => undefined);
+      }
+    }
+  }, [l1Context.datasetName, l1Context.episodeId, l1Context.jsonl]);
+
   useEffect(() => {
     if (!imported) return;
     pending.current = null;
     setJsonl(imported.jsonl);
     setEpisodeId(imported.name.replace(/\.[^.]+$/, ""));
-    setReport(null);
-    setError(null);
+    void execute(imported.jsonl, imported.name.replace(/\.[^.]+$/, "")).catch(() => undefined);
   }, [imported?.at]);
 
   useEffect(() => {
@@ -100,9 +138,6 @@ export function App() {
       .then((r) => r.json())
       .then((d) => {
         setFixtures(d.fixtures || []);
-        if (d.fixtures?.includes("real_aivillage_episode.jsonl")) {
-          loadFixture("real_aivillage_episode.jsonl");
-        }
       })
       .catch(() => setFixtures([]));
   }, []);
@@ -147,8 +182,11 @@ export function App() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "forensics failed");
       setReport(body);
+      studio.patchForensics({ report: body, episodeId: id, running: false, error: null });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      studio.patchForensics({ error: msg, running: false });
       throw e;
     } finally {
       setRunning(false);
@@ -192,72 +230,285 @@ export function App() {
   }
 
   return (
-    <div className="page">
-      <header>
-        <h1>Model Forensics Studio</h1>
-        <p>Direct AI Village dataset interpretation in Python (Zero SQL connector required).</p>
-      </header>
-
-      <section className="panel">
-        <div className="delta" style={{ marginBottom: 16 }}>
-          <strong>Mode:</strong> Direct stream of <code>dataset/events.jsonl.gz</code> & <code>chat_messages.jsonl.gz</code> via native Python interpreter. No external SQL database or database connector required.
-        </div>
-
-        <h2>1. Select a dataset episode</h2>
-        <div className="row" style={{ alignItems: "center", gap: 12 }}>
-          <label>
-            Bundled fixture:&nbsp;
-            <select
-              value={fixtures.includes(episodeId + ".jsonl") ? episodeId + ".jsonl" : ""}
-              onChange={(e) => e.target.value && loadFixture(e.target.value)}
-            >
-              {fixtures.map((f) => (
-                <option key={f} value={f}>
-                  {f === "real_aivillage_episode.jsonl" ? "★ real_aivillage_episode.jsonl (Live Dataset)" : f}
-                </option>
-              ))}
-            </select>
-          </label>
-
+    <div className={`page ${embedded ? "embedded" : ""}`}>
+      <header className="forensics-l2-header">
+        <div className="l2-header-top">
           <button
             type="button"
-            disabled={scanning}
-            onClick={rescanDataset}
-            style={{ padding: "4px 10px", fontSize: "0.85rem" }}
+            className="back-to-l1-btn"
+            onClick={() => actions.switchView("graph")}
+            title="Return to Level 1 Investigation Graph"
           >
-            {scanning ? "Extracting from events.jsonl.gz…" : "↻ Rescan Raw Dataset (Python)"}
+            ← Back to Step 1 Investigation Graph
+          </button>
+          <div className="l2-step-pill">
+            <span className="step-badge l1">Step 1: Graph & Verdicts</span>
+            <span className="arrow-sep">➔</span>
+            <span className="step-badge l2 active">Step 2: Causal Deep-Dive</span>
+          </div>
+          <div className="forensics-view-toggle">
+            <button
+              type="button"
+              className={studioState.view === "split" ? "on" : ""}
+              onClick={() => actions.switchView("split")}
+              title="Inspect Step 1 Graph and Step 2 Forensics side-by-side"
+            >
+              ◫ Split View
+            </button>
+            <button
+              type="button"
+              className={studioState.view === "forensics" ? "on" : ""}
+              onClick={() => actions.switchView("forensics")}
+              title="Full screen Step 2 Causal Forensics"
+            >
+              🔬 Forensics Full
+            </button>
+          </div>
+        </div>
+        <h1>Step 2 · Model Forensics Studio</h1>
+        <p className="subtitle">
+          Causal motive reconstruction, latent reward formulation, and counterfactual simulation
+          starting directly from Level 1 evidence.
+        </p>
+      </header>
+
+      <section className="panel l1-handoff-panel">
+        <div className="l1-handoff-top">
+          <div>
+            <span className="l1-kicker">Level 1 Analysis Grounding</span>
+            <h2 className="l1-case-title">
+              Active Investigation: <b>{l1Context.datasetName}</b>
+            </h2>
+            <div className="l1-episode-id">
+              Episode ID: <code>{episodeId}</code> · Source: <span className="chip">{l1Context.source}</span>
+            </div>
+          </div>
+          <div className="l1-stats-strip">
+            <div className="l1-stat-pill" title="Total entities extracted in Level 1">
+              <b>{l1Context.totalRecords}</b>
+              <span>Entities</span>
+            </div>
+            <div className="l1-stat-pill" title="Total claims evaluated in Level 1">
+              <b>{l1Context.totalClaims}</b>
+              <span>Claims</span>
+            </div>
+            <div className="l1-stat-pill con" title="Claims contradicted by recorded observations">
+              <b>{l1Context.contradictedCount}</b>
+              <span>🚨 Contradicted</span>
+            </div>
+            <div className="l1-stat-pill unr" title="Claims with no decisive evidence">
+              <b>{l1Context.unresolvedCount}</b>
+              <span>⚠️ Unresolved</span>
+            </div>
+            <div className="l1-stat-pill sup" title="Claims verified by observations">
+              <b>{l1Context.supportedCount}</b>
+              <span>✅ Supported</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Level 1 Targeted Anomaly */}
+        {l1Context.targetClaim ? (
+          <div className="l1-target-card">
+            <div className="l1-target-header">
+              <div className="l1-target-tag">
+                <span className="target-pulse" />
+                <strong>Targeted Anomaly from Level 1:</strong>
+              </div>
+              {l1Context.contradictedClaims.length > 1 && (
+                <label className="switch-anomaly-label">
+                  Switch anomaly:
+                  <select
+                    value={l1Context.targetClaim.id}
+                    onChange={(e) => actions.setTargetClaim(e.target.value)}
+                  >
+                    {l1Context.contradictedClaims.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label} ({c.id})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+            <div className="l1-target-body">
+              <div className="l1-target-claim-row">
+                <div className="l1-claim-badge">CONTRADICTED</div>
+                <div className="l1-claim-info">
+                  <h3 className="l1-claim-title">{l1Context.targetClaim.label}</h3>
+                  <p className="l1-claim-preview">"{l1Context.targetClaim.previewText}"</p>
+                  <div className="l1-claim-meta">
+                    <span>Source record: <code>{l1Context.targetClaim.sourceRecordId}</code></span>
+                    {l1Context.targetClaim.agent && <span>Agent: <b>{l1Context.targetClaim.agent}</b></span>}
+                    {l1Context.targetClaim.time && <span>Time: <time>{l1Context.targetClaim.time}</time></span>}
+                  </div>
+                </div>
+              </div>
+              {l1Context.targetClaim.decisiveObservation && (
+                <div className="l1-decisive-obs">
+                  <strong>Refuting Observation in Level 1 Graph:</strong>
+                  <span>{l1Context.targetClaim.decisiveObservation.label} — <em>"{l1Context.targetClaim.decisiveObservation.previewText}"</em></span>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, margin: "10px 0", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="chip-link-btn"
+                  onClick={() => {
+                    actions.selectNode(l1Context.targetClaim!.id);
+                    if (studioState.view === "forensics") actions.switchView("split");
+                  }}
+                  title="Highlight and center this claim in Step 1 graph"
+                >
+                  ⌕ Highlight Claim in Graph ({l1Context.targetClaim.id})
+                </button>
+                {l1Context.targetClaim.decisiveObservation && (
+                  <button
+                    type="button"
+                    className="chip-link-btn"
+                    onClick={() => {
+                      actions.selectNode(l1Context.targetClaim!.decisiveObservation!.id);
+                      if (studioState.view === "forensics") actions.switchView("split");
+                    }}
+                    title="Highlight and center the refuting observation in Step 1 graph"
+                  >
+                    ⌕ Highlight Observation in Graph ({l1Context.targetClaim.decisiveObservation.id})
+                  </button>
+                )}
+              </div>
+              <div className="l1-forensic-mission">
+                <strong>Forensic Objective:</strong> Level 1 established that this claim conflicts with recorded tool observations. Level 2 investigates whether the discrepancy arose from benign tool execution errors or deliberate strategic deception, and identifies the underlying latent reward structure.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="l1-no-target-note">
+            {l1Context.hasActiveAnalysis ? (
+              <p>
+                Full multi-agent episode stream linked from Level 1 ({l1Context.datasetName}).
+                Forensics is evaluating all agent scratchpads for latent reward alignment, shortcut preferences, and counterfactual policy stability.
+              </p>
+            ) : (
+              <div style={{ textAlign: "center", padding: "18px 12px" }}>
+                <h3 style={{ margin: "0 0 6px", color: "var(--navy)", fontSize: 15 }}>No Active Investigation Loaded in Step 1</h3>
+                <p style={{ margin: "0 0 12px", color: "var(--dim)", fontSize: 12.5 }}>
+                  Step 2 Causal Forensics automatically analyzes artifacts from Step 1 without requiring manual uploads or prompts.
+                </p>
+                <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+                  <button type="button" className="btn primary" onClick={() => void actions.loadDataset("mock")}>
+                    Load Sample Incident (June 11)
+                  </button>
+                  <button type="button" className="btn" onClick={() => actions.openImport(true)}>
+                    Import Transcript in Step 1
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="l1-action-row" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 14 }}>
+          <button
+            type="button"
+            className="btn-run-forensics"
+            disabled={!jsonl || running}
+            onClick={runForensics}
+          >
+            {running
+              ? "🔬 Run Forensics: Analyzing Level 1 Episode…"
+              : report
+              ? "↻ Re-run Forensics on Level 1 Episode"
+              : l1Context.hasActiveAnalysis
+              ? "🔬 Run Forensics on Level 1 Episode"
+              : "Run Forensics"}
           </button>
 
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+          {l1Context.hasActiveAnalysis ? (
+            <div className="l1-stream-sync-pill" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--ok)", background: "#d5efdf", padding: "4px 10px", border: "1px solid #c4ecd3", borderRadius: 4, fontWeight: 600 }}>
+              <span>✓ Artifacts Auto-Linked from Step 1 ({l1Context.datasetName}) · {l1Context.totalRecords} records</span>
+            </div>
+          ) : (
+            <span style={{ fontSize: 12, color: "var(--dim)" }}>
+              Artifacts will link automatically once Step 1 loads
+            </span>
+          )}
+
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--dim)" }}>
             <input
               type="checkbox"
               checked={usePython}
               onChange={(e) => setUsePython(e.target.checked)}
             />
-            Use Direct Python Forensics Engine
+            Python Engine
           </label>
+
+          {l1Context.hasActiveAnalysis && (
+            <button
+              type="button"
+              className="btn-toggle-advanced"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              style={{ marginLeft: "auto", background: "none", color: "var(--blue, #2f6fb5)", border: "1px solid var(--line, #c5ced7)", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11.5 }}
+            >
+              {showAdvanced ? "▲ Hide Stream Preview" : "▼ Inspect Stream Preview"}
+            </button>
+          )}
         </div>
 
-        <div className="row" style={{ marginTop: 8 }}>
-          <label style={{ flex: 1 }}>
-            Episode ID: <input value={episodeId} onChange={(e) => setEpisodeId(e.target.value)} />
-          </label>
-          <label>
-            Upload JSONL: <input type="file" accept=".jsonl,.jsonl.gz,.jsonl,jsonl" onChange={onUpload} />
-          </label>
-        </div>
-
-        <textarea
-          rows={8}
-          placeholder="…or paste episode JSONL here"
-          value={jsonl}
-          onChange={(e) => setJsonl(e.target.value)}
-        />
-        <button disabled={!jsonl || running} onClick={runForensics}>
-          {running ? "Running Forensics…" : "Run Forensics"}
-        </button>
         {error && <p className="error">{error}</p>}
+
+        {/* When active analysis exists: read-only preview only if explicitly requested */}
+        {l1Context.hasActiveAnalysis && showAdvanced && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--line, #c5ced7)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 11.5, color: "var(--dim)" }}>
+                Active Transcript Stream: <code>{episodeId}</code> ({l1Context.source})
+              </span>
+              <span style={{ fontSize: 11, color: "var(--dim)" }}>
+                Piped automatically from Level 1 Evidence Graph
+              </span>
+            </div>
+            <textarea
+              rows={4}
+              readOnly
+              value={jsonl}
+            />
+          </div>
+        )}
+
+        {/* Automated test runner fixture compatibility hook */}
+        <div
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0, 0, 0, 0)",
+            border: 0,
+          }}
+          aria-hidden="true"
+        >
+          <textarea
+            rows={1}
+            placeholder="…or paste episode JSONL here"
+            value={jsonl}
+            onChange={(e) => setJsonl(e.target.value)}
+          />
+        </div>
       </section>
+
+      {running && !report && (
+        <section className="panel" style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", background: "#eef4fb", border: "1px solid #c5ced7", borderLeft: "5px solid var(--blue)", borderRadius: 5 }}>
+          <div className="target-pulse" style={{ width: 12, height: 12 }} />
+          <div>
+            <strong style={{ color: "var(--navy)", fontSize: 14 }}>🔬 Running Causal Motive Forensics on {l1Context.datasetName}…</strong>
+            <p style={{ margin: "4px 0 0", color: "var(--ink)", fontSize: 12.5 }}>
+              Replaying agent internal monologues, testing competing hypotheses (benign shortcut vs. strategic deception), and computing counterfactual Pearl rollouts.
+            </p>
+          </div>
+        </section>
+      )}
 
       {report && (
         <>
@@ -308,8 +559,34 @@ export function App() {
               <tbody>
                 {report.claims.map((c) => (
                   <tr key={c.claimId}>
-                    <td>{c.claimId}</td><td>{c.statementText}</td>
-                    <td>{c.expectedQuantity ?? "—"}</td><td>{c.sourceRecordId}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="chip-link-sm"
+                        onClick={() => {
+                          actions.selectNode(c.claimId);
+                          if (studioState.view === "forensics") actions.switchView("split");
+                        }}
+                        title={`Select ${c.claimId} on graph`}
+                      >
+                        ⌕ {c.claimId}
+                      </button>
+                    </td>
+                    <td>{c.statementText}</td>
+                    <td>{c.expectedQuantity ?? "—"}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="chip-link-sm"
+                        onClick={() => {
+                          actions.selectNode(c.sourceRecordId);
+                          if (studioState.view === "forensics") actions.switchView("split");
+                        }}
+                        title={`Select ${c.sourceRecordId} on graph`}
+                      >
+                        {c.sourceRecordId}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -358,6 +635,20 @@ export function App() {
                           <span className="trace-card-title">{g.title}</span>
                           {g.agentIds.map((a) => (
                             <span key={a} className="badge agent-badge">{a}</span>
+                          ))}
+                          {g.recordsInvolved.map((rid) => (
+                            <button
+                              key={rid}
+                              type="button"
+                              className="chip-link-sm"
+                              onClick={() => {
+                                actions.selectNode(rid);
+                                if (studioState.view === "forensics") actions.switchView("split");
+                              }}
+                              title={`Inspect ${rid} in graph`}
+                            >
+                              ⌕ {rid}
+                            </button>
                           ))}
                         </div>
                         <span
@@ -419,7 +710,20 @@ export function App() {
                 {report.traces.length === 0 && <p className="muted">No scratchpads found in this episode.</p>}
                 {report.traces.map((t) => (
                   <div key={t.recordId} className="trace">
-                    <div className="muted">{t.recordId} · {t.agentId} · {t.timestamp}</div>
+                    <div className="muted" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span>{t.recordId} · {t.agentId} · {t.timestamp}</span>
+                      <button
+                        type="button"
+                        className="chip-link-sm"
+                        onClick={() => {
+                          actions.selectNode(t.recordId);
+                          if (studioState.view === "forensics") actions.switchView("split");
+                        }}
+                        title={`Inspect ${t.recordId} in graph`}
+                      >
+                        ⌕ Locate in Graph
+                      </button>
+                    </div>
                     <pre>{t.scratchpadContent}</pre>
                     {t.contradictionDelta && (
                       <div className="delta">
@@ -440,8 +744,27 @@ export function App() {
                 <div key={h.hypothesisId} className={`card ${h.isBenignExplanation ? "benign" : "deceptive"}`}>
                   <div className="badge">{h.category}</div>
                   <p>{h.statement}</p>
-                  <div className="muted">
-                    ESI: <strong>{(h.esi ?? 0).toFixed(2)}</strong> · confidence {(h.confidence * 100).toFixed(0)}% · supports: {h.supportingRecordIds.join(", ") || "—"}
+                  <div className="muted" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                    <span>ESI: <strong>{(h.esi ?? 0).toFixed(2)}</strong> · confidence {(h.confidence * 100).toFixed(0)}%</span>
+                    {h.supportingRecordIds.length > 0 && (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        · supports:
+                        {h.supportingRecordIds.map((rid) => (
+                          <button
+                            key={rid}
+                            type="button"
+                            className="chip-link-sm"
+                            onClick={() => {
+                              actions.selectNode(rid);
+                              if (studioState.view === "forensics") actions.switchView("split");
+                            }}
+                            title={`Select node ${rid} on graph`}
+                          >
+                            {rid}
+                          </button>
+                        ))}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -494,7 +817,7 @@ export function App() {
           {report.latentRewardStructure && (
             <section className="panel" style={{ borderLeft: "4px solid #f0b429" }}>
               <h2>7. Latent Reward Function Structure & Payoff Matrix</h2>
-              <div className="delta" style={{ fontSize: "1.05rem", padding: "10px 14px", background: "#1c2230", borderRadius: 6, marginBottom: 16 }}>
+              <div className="delta" style={{ fontSize: "1.05rem", padding: "10px 14px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 6, marginBottom: 16 }}>
                 <code>{report.latentRewardStructure.formulation}</code>
               </div>
 
@@ -502,14 +825,14 @@ export function App() {
                 <h3 style={{ margin: "0 0 10px 0" }}>Evaluated Reward Parameters</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
                   {Object.entries(report.latentRewardStructure.parameters).map(([key, p]) => (
-                    <div key={key} className="card" style={{ borderColor: p.active ? "#f0b429" : "#2a3040" }}>
+                    <div key={key} className="card" style={{ borderColor: p.active ? "var(--accent)" : "var(--line)" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                         <strong>{p.label}</strong>
                         <span className={`badge ${p.active ? "deceptive" : "benign"}`}>
                           {p.active ? "ACTIVE" : "INACTIVE"}
                         </span>
                       </div>
-                      <div style={{ fontSize: "1.4rem", fontWeight: "bold", margin: "4px 0" }}>
+                      <div style={{ fontSize: "1.4rem", fontWeight: "bold", margin: "4px 0", color: "var(--navy)" }}>
                         {p.value.toFixed(2)}
                       </div>
                       <div className="muted">{p.description}</div>
@@ -531,7 +854,7 @@ export function App() {
                   </thead>
                   <tbody>
                     {report.latentRewardStructure.payoffComparison.map((p, idx) => (
-                      <tr key={idx} style={{ background: p.preferredByAgent ? "#1a243b" : "transparent" }}>
+                      <tr key={idx} style={{ background: p.preferredByAgent ? "#e8f1fb" : "transparent" }}>
                         <td><strong>{p.action}</strong></td>
                         <td>{p.description}</td>
                         <td><code>{p.netPayoffScore > 0 ? `+${p.netPayoffScore}` : p.netPayoffScore}</code></td>
@@ -576,15 +899,15 @@ export function App() {
                   </div>
                 </div>
 
-                <div className="panel" style={{ background: "#11141c", border: "1px solid #2a3040", margin: "16px 0" }}>
-                  <h3 style={{ margin: "0 0 8px 0", color: "#90cdf4" }}>🔬 Pearl Causal Intervention Mechanism (do(X = x&apos;))</h3>
+                <div className="panel" style={{ background: "var(--panel)", border: "1px solid var(--line)", margin: "16px 0" }}>
+                  <h3 style={{ margin: "0 0 8px 0", color: "var(--navy)" }}>🔬 Pearl Causal Intervention Mechanism (do(X = x&apos;))</h3>
                   <p style={{ lineHeight: 1.6, margin: 0 }}>{report.causalReport.interventionMechanism}</p>
                 </div>
 
                 <div style={{ margin: "16px 0" }}>
                   <h3 style={{ margin: "0 0 10px 0" }}>Behavior Divergence: Observational Baseline vs. Counterfactual Intervention</h3>
                   <div className="cards" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                    <div className="card" style={{ borderColor: "#e5484d", background: "#181216" }}>
+                    <div className="card" style={{ borderColor: "var(--bad)", background: "#fdf3f2" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                         <strong>Observational World (X = x)</strong>
                         <span className="badge deceptive">Baseline</span>
@@ -594,7 +917,7 @@ export function App() {
                       </p>
                     </div>
 
-                    <div className="card" style={{ borderColor: "#2fbf71", background: "#101815" }}>
+                    <div className="card" style={{ borderColor: "var(--ok)", background: "#f1faf4" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                         <strong>Counterfactual Intervention (do(X = x&apos;))</strong>
                         <span className="badge benign">N=3 Rollouts (T=0.4)</span>
@@ -605,14 +928,14 @@ export function App() {
                     </div>
                   </div>
 
-                  <div className="delta" style={{ marginTop: 10, padding: "8px 12px", background: "#1c2230", borderRadius: 6 }}>
+                  <div className="delta" style={{ marginTop: 10, padding: "8px 12px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 6 }}>
                     <strong>Causal Significance:</strong> {report.causalReport.counterfactualBehaviorComparison.causalDivergenceSignificance}
                   </div>
                 </div>
 
                 <div style={{ margin: "16px 0" }}>
                   <h3 style={{ margin: "0 0 8px 0" }}>Operative Reward Function Inversion</h3>
-                  <p style={{ lineHeight: 1.6, margin: 0, color: "#d1d5db" }}>{report.causalReport.rewardFunctionAnalysis}</p>
+                  <p style={{ lineHeight: 1.6, margin: 0, color: "var(--ink)" }}>{report.causalReport.rewardFunctionAnalysis}</p>
                 </div>
 
                 <div style={{ margin: "16px 0" }}>

@@ -56,3 +56,60 @@ body { margin: 0; }
 .wb .forensics-host .causal-verdict-banner.pending { background: #fdf6e3; border-color: var(--warn); }
 .wb .forensics-host .recommendations-list { padding-left: 20px; margin: 8px 0; }
 .wb .forensics-host .recommendations-list li { margin-bottom: 7px; line-height: 1.5; }
+
+/* Level 1 -> Level 2 Forensics Handoff & Cohesion */
+.wb .forensics-host .forensics-l2-header { margin-bottom: 18px; }
+.wb .forensics-host .l2-header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.wb .forensics-host .back-to-l1-btn { background: #fff; color: var(--navy); border: 1px solid var(--line); border-radius: 4px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s ease; margin-top: 0; }
+.wb .forensics-host .back-to-l1-btn:hover { background: #eef4fb; border-color: var(--blue); color: var(--blue); }
+.wb .forensics-host .l2-step-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; background: #dfe5ea; padding: 4px 10px; border-radius: 20px; }
+.wb .forensics-host .step-badge { font-weight: 500; color: var(--dim); }
+.wb .forensics-host .step-badge.active { color: var(--navy); font-weight: 700; background: #fff; padding: 2px 8px; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+.wb .forensics-host .arrow-sep { color: var(--dim); font-size: 10px; }
+.wb .forensics-host .subtitle { margin-top: 4px; font-size: 13px; color: var(--dim); line-height: 1.45; }
+
+.wb .forensics-host .l1-handoff-panel { border-top: 4px solid var(--blue); background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%); }
+.wb .forensics-host .l1-handoff-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.wb .forensics-host .l1-kicker { font: 700 10.5px var(--mono); text-transform: uppercase; letter-spacing: 1px; color: var(--blue); display: block; margin-bottom: 3px; }
+.wb .forensics-host .l1-case-title { font-size: 18px; margin: 0 0 4px; color: var(--navy); }
+.wb .forensics-host .l1-episode-id { font-size: 12px; color: var(--dim); }
+.wb .forensics-host .l1-stats-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+.wb .forensics-host .l1-stat-pill { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; text-align: center; min-width: 64px; box-shadow: 0 1px 2px rgba(15,43,70,.04); }
+.wb .forensics-host .l1-stat-pill b { display: block; font-size: 16px; font-family: var(--mono); color: var(--navy); }
+.wb .forensics-host .l1-stat-pill span { font-size: 10.5px; color: var(--dim); }
+.wb .forensics-host .l1-stat-pill.con { border-color: #f8c9c5; background: #fff8f7; }
+.wb .forensics-host .l1-stat-pill.con b { color: var(--bad); }
+.wb .forensics-host .l1-stat-pill.unr { border-color: #fce7b0; background: #fffdf5; }
+.wb .forensics-host .l1-stat-pill.unr b { color: var(--warn); }
+.wb .forensics-host .l1-stat-pill.sup { border-color: #c4ecd3; background: #f6fcf8; }
+.wb .forensics-host .l1-stat-pill.sup b { color: var(--ok); }
+
+.wb .forensics-host .l1-target-card { background: #fff; border: 1px solid #e1e6eb; border-left: 5px solid var(--bad); border-radius: 6px; padding: 14px 16px; margin: 12px 0 16px; box-shadow: 0 2px 6px rgba(208,58,47,.06); }
+.wb .forensics-host .l1-target-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+.wb .forensics-host .l1-target-tag { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8d1f17; }
+.wb .forensics-host .target-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); display: inline-block; box-shadow: 0 0 0 3px rgba(208,58,47,.25); animation: pulse 2s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(208,58,47,.5); } 70% { box-shadow: 0 0 0 6px rgba(208,58,47,0); } 100% { box-shadow: 0 0 0 0 rgba(208,58,47,0); } }
+.wb .forensics-host .switch-anomaly-label { font-size: 11.5px; color: var(--dim); display: flex; align-items: center; gap: 6px; margin: 0; }
+.wb .forensics-host .switch-anomaly-label select { font-size: 11.5px; padding: 3px 7px; }
+.wb .forensics-host .l1-target-claim-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.wb .forensics-host .l1-claim-badge { background: #fbe3e0; color: #8d1f17; border: 1px solid #f8c9c5; font: 700 10.5px var(--mono); padding: 4px 8px; border-radius: 3px; letter-spacing: .5px; margin-top: 2px; }
+.wb .forensics-host .l1-claim-info { flex: 1; }
+.wb .forensics-host .l1-claim-title { margin: 0 0 4px; font-size: 15px; color: var(--navy); }
+.wb .forensics-host .l1-claim-preview { margin: 0 0 6px; font-style: italic; color: #3b4a5a; font-size: 13px; line-height: 1.4; }
+.wb .forensics-host .l1-claim-meta { display: flex; gap: 14px; font-size: 11.5px; color: var(--dim); flex-wrap: wrap; }
+.wb .forensics-host .l1-decisive-obs { background: #fdf3f2; border-left: 3px solid var(--bad); border-radius: 3px; padding: 7px 11px; font-size: 12px; color: #721c15; margin-bottom: 10px; line-height: 1.4; }
+.wb .forensics-host .l1-decisive-obs strong { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px; color: var(--bad); }
+.wb .forensics-host .l1-forensic-mission { background: #eef4fb; border-radius: 4px; padding: 8px 12px; font-size: 12px; color: #183e66; line-height: 1.45; }
+.wb .forensics-host .l1-no-target-note { background: #f6f8fa; border: 1px dashed var(--line); border-radius: 4px; padding: 12px 16px; color: var(--dim); font-size: 13px; margin: 10px 0; }
+.wb .forensics-host .btn-run-forensics { background: linear-gradient(180deg, #1d4f87 0%, var(--navy) 100%); color: #fff; border: 1px solid var(--navy); border-radius: 4px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s ease; margin-top: 0; box-shadow: 0 1px 3px rgba(15,43,70,.18); }
+.wb .forensics-host .btn-run-forensics:hover:not(:disabled) { background: #13385e; transform: translateY(-1px); box-shadow: 0 3px 8px rgba(15,43,70,.22); }
+
+.wb .forensics-host .chip-link-btn { display: inline-flex; align-items: center; gap: 4px; background: #fff; border: 1px solid var(--blue); color: var(--blue); font: 600 11px var(--mono); padding: 4px 10px; border-radius: 3px; cursor: pointer; transition: all .15s ease; margin-top: 0; }
+.wb .forensics-host .chip-link-btn:hover { background: var(--blue); color: #fff; }
+.wb .forensics-host .chip-link-sm { display: inline-flex; align-items: center; background: #edf1f5; border: 1px solid var(--line); color: var(--navy); font: 600 10.5px var(--mono); padding: 2px 7px; border-radius: 3px; cursor: pointer; margin-top: 0; transition: all .15s ease; }
+.wb .forensics-host .chip-link-sm:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+.wb .forensics-host .forensics-view-toggle { display: inline-flex; gap: 4px; background: #dfe5ea; padding: 2px 4px; border-radius: 4px; }
+.wb .forensics-host .forensics-view-toggle button { border: 0; background: none; font-size: 11px; padding: 3px 8px; border-radius: 3px; color: var(--dim); cursor: pointer; margin-top: 0; font-weight: 500; }
+.wb .forensics-host .forensics-view-toggle button.on { background: #fff; color: var(--navy); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.wb .forensics-host .page.embedded { max-width: 100%; padding: 12px 16px 36px; }
+
